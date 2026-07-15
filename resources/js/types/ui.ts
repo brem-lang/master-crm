@@ -19,3 +19,15 @@ export type AuthLayoutProps = {
     title?: string;
     description?: string;
 };
+
+export type Paginator<T> = {
+    data: T[];
+    links: { url: string | null; label: string; active: boolean }[];
+    current_page: number;
+    last_page: number;
+    total: number;
+    per_page: number;
+    path: string;
+    prev_page_url: string | null;
+    next_page_url: string | null;
+};

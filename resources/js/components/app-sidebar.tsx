@@ -1,9 +1,9 @@
-import { Link } from '@inertiajs/react';
-import { BookOpen, FolderGit2, LayoutGrid } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import { Building2, LayoutGrid, Settings, ShieldCheck, Users } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
-import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
+import { Badge } from '@/components/ui/badge';
 import {
     Sidebar,
     SidebarContent,
@@ -14,30 +14,62 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
-import type { NavItem } from '@/types';
-
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: LayoutGrid,
-    },
-];
-
-const footerNavItems: NavItem[] = [
-    {
-        title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
-        icon: FolderGit2,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
-        icon: BookOpen,
-    },
-];
+import { index as companiesIndex } from '@/routes/companies';
+import { index as rolesIndex } from '@/routes/roles';
+import { index as usersIndex } from '@/routes/users';
+import type { Auth, NavItem } from '@/types';
 
 export function AppSidebar() {
+    const { auth } = usePage<{ auth: Auth }>().props;
+
+    const settingsItems: NavItem[] = [
+        ...(auth.permissions?.includes('manage-companies')
+            ? [
+                  {
+                      title: 'Companies',
+                      href: companiesIndex(),
+                      icon: Building2,
+                  },
+              ]
+            : []),
+        ...(auth.permissions?.includes('manage-users')
+            ? [
+                  {
+                      title: 'Users',
+                      href: usersIndex(),
+                      icon: Users,
+                  },
+              ]
+            : []),
+        ...(auth.permissions?.includes('manage-roles')
+            ? [
+                  {
+                      title: 'Roles & Permissions',
+                      href: rolesIndex(),
+                      icon: ShieldCheck,
+                  },
+              ]
+            : []),
+    ];
+
+    const mainNavItems: NavItem[] = [
+        {
+            title: 'Dashboard',
+            href: dashboard(),
+            icon: LayoutGrid,
+        },
+        ...(settingsItems.length > 0
+            ? [
+                  {
+                      title: 'Settings',
+                      href: usersIndex(),
+                      icon: Settings,
+                      items: settingsItems,
+                  },
+              ]
+            : []),
+    ];
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -49,6 +81,13 @@ export function AppSidebar() {
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
+                    {auth.company && (
+                        <SidebarMenuItem className="px-2 group-data-[collapsible=icon]:hidden">
+                            <Badge variant="secondary" className="w-full justify-center">
+                                {auth.company.name}
+                            </Badge>
+                        </SidebarMenuItem>
+                    )}
                 </SidebarMenu>
             </SidebarHeader>
 
@@ -57,7 +96,6 @@ export function AppSidebar() {
             </SidebarContent>
 
             <SidebarFooter>
-                <NavFooter items={footerNavItems} className="mt-auto" />
                 <NavUser />
             </SidebarFooter>
         </Sidebar>

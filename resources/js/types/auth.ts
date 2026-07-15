@@ -1,3 +1,22 @@
+export type Permission = {
+    id: number;
+    name: string;
+};
+
+export type Role = {
+    id: number;
+    name: string;
+    permissions?: Permission[];
+};
+
+export type Company = {
+    id: number;
+    name: string;
+    slug?: string;
+    is_active?: boolean;
+    users_count?: number;
+};
+
 export type User = {
     id: number;
     name: string;
@@ -5,6 +24,9 @@ export type User = {
     avatar?: string;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;
+    roles?: Role[];
+    company_id?: number | null;
+    company?: Company | null;
     created_at: string;
     updated_at: string;
     [key: string]: unknown;
@@ -12,6 +34,9 @@ export type User = {
 
 export type Auth = {
     user: User;
+    permissions?: string[];
+    impersonating?: boolean;
+    company?: Company | null;
 };
 
 /* @chisel-passkeys */
