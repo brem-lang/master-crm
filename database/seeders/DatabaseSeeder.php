@@ -22,7 +22,7 @@ class DatabaseSeeder extends Seeder
         User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
-        ])->assignRole('agent');
+        ])->assignRole('sales-rep');
 
         $this->call(AdminUserSeeder::class);
     }

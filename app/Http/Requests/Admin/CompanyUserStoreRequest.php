@@ -26,7 +26,7 @@ class CompanyUserStoreRequest extends FormRequest
             'name' => $this->nameRules(),
             'email' => $this->emailRules(),
             'password' => $this->passwordRules(),
-            'role' => ['required', Rule::in(['child-admin', 'agent'])],
+            'role' => ['required', Rule::in(['child-admin', 'sales-rep'])],
         ];
     }
 }

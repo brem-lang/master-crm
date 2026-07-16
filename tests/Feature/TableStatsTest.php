@@ -32,7 +32,7 @@ test('parent admin user stats count users across all companies', function () {
 
     User::factory()->create(['company_id' => $companyA->id])->assignRole('child-admin');
     User::factory()->create(['company_id' => $companyB->id])->assignRole('child-admin');
-    User::factory()->create(['company_id' => $companyB->id])->assignRole('agent');
+    User::factory()->create(['company_id' => $companyB->id])->assignRole('sales-rep');
 
     $response = $this->actingAs($parentAdmin)->get(route('users.index'));
 
@@ -42,7 +42,7 @@ test('parent admin user stats count users across all companies', function () {
         'total' => 4,
         'parent_admin' => 1,
         'child_admin' => 2,
-        'agent' => 1,
+        'sales_rep' => 1,
     ]);
 });
 
@@ -53,8 +53,8 @@ test('child admin user stats are scoped to their own company', function () {
     $childAdmin = User::factory()->create(['company_id' => $companyA->id]);
     $childAdmin->assignRole('child-admin');
 
-    User::factory()->create(['company_id' => $companyA->id])->assignRole('agent');
-    User::factory()->create(['company_id' => $companyB->id])->assignRole('agent');
+    User::factory()->create(['company_id' => $companyA->id])->assignRole('sales-rep');
+    User::factory()->create(['company_id' => $companyB->id])->assignRole('sales-rep');
 
     $response = $this->actingAs($childAdmin)->get(route('users.index'));
 
@@ -64,6 +64,6 @@ test('child admin user stats are scoped to their own company', function () {
         'total' => 2,
         'parent_admin' => 0,
         'child_admin' => 1,
-        'agent' => 1,
+        'sales_rep' => 1,
     ]);
 });

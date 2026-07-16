@@ -46,10 +46,10 @@ test('child admin bulk deleting users only deletes users within their own compan
     $childAdmin->assignRole('child-admin');
 
     $ownAgent = User::factory()->create(['company_id' => $companyA->id]);
-    $ownAgent->assignRole('agent');
+    $ownAgent->assignRole('sales-rep');
 
     $otherCompanyUser = User::factory()->create(['company_id' => $companyB->id]);
-    $otherCompanyUser->assignRole('agent');
+    $otherCompanyUser->assignRole('sales-rep');
 
     $response = $this->actingAs($childAdmin)->delete(route('users.bulk-destroy'), [
         'ids' => [$ownAgent->id, $otherCompanyUser->id],

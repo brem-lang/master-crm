@@ -24,10 +24,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { ROLE_BADGE_CLASSES } from '@/lib/role-badge';
+import { ROLE_BADGE_CLASSES, roleLabel } from '@/lib/role-badge';
 import type { Company, User } from '@/types';
 
-const ASSIGNABLE_ROLES = ['child-admin', 'agent'];
+const ASSIGNABLE_ROLES = ['child-admin', 'sales-rep'];
 
 type Props = {
     open: boolean;
@@ -98,7 +98,7 @@ export function CompanyUsersDialog({
                                             ROLE_BADGE_CLASSES[userRole.name]
                                         }
                                     >
-                                        {userRole.name}
+                                        {roleLabel(userRole.name)}
                                     </Badge>
                                 ))}
 
@@ -167,9 +167,7 @@ export function CompanyUsersDialog({
                         {({ processing, errors }) => (
                             <>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="new-user-name">
-                                        Name
-                                    </Label>
+                                    <Label htmlFor="new-user-name">Name</Label>
                                     <Input
                                         id="new-user-name"
                                         name="name"
@@ -223,16 +221,12 @@ export function CompanyUsersDialog({
                                         placeholder="Confirm password"
                                     />
                                     <InputError
-                                        message={
-                                            errors.password_confirmation
-                                        }
+                                        message={errors.password_confirmation}
                                     />
                                 </div>
 
                                 <div className="grid gap-2">
-                                    <Label htmlFor="new-user-role">
-                                        Role
-                                    </Label>
+                                    <Label htmlFor="new-user-role">Role</Label>
                                     <input
                                         type="hidden"
                                         name="role"
@@ -255,7 +249,7 @@ export function CompanyUsersDialog({
                                                         key={roleName}
                                                         value={roleName}
                                                     >
-                                                        {roleName}
+                                                        {roleLabel(roleName)}
                                                     </SelectItem>
                                                 ),
                                             )}
@@ -272,10 +266,7 @@ export function CompanyUsersDialog({
                                     >
                                         Cancel
                                     </Button>
-                                    <Button
-                                        disabled={processing}
-                                        type="submit"
-                                    >
+                                    <Button disabled={processing} type="submit">
                                         <Plus />
                                         Create
                                     </Button>

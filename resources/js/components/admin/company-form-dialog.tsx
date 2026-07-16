@@ -72,16 +72,54 @@ export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
                                 </div>
                             )}
 
+                            <div className="grid gap-2">
+                                <Label htmlFor="website">Website</Label>
+                                <Input
+                                    id="website"
+                                    name="website"
+                                    type="url"
+                                    defaultValue={company?.website ?? ''}
+                                    placeholder="https://example.com"
+                                />
+                                <InputError message={errors.website} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="api_url">API URL</Label>
+                                <Input
+                                    id="api_url"
+                                    name="api_url"
+                                    type="url"
+                                    defaultValue={company?.api_url ?? ''}
+                                    required
+                                    placeholder="https://child-crm.example.com/api"
+                                />
+                                <InputError message={errors.api_url} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="api_key">API Key</Label>
+                                <Input
+                                    id="api_key"
+                                    name="api_key"
+                                    defaultValue={company?.api_key ?? ''}
+                                    required
+                                    placeholder="Shared secret used to authenticate"
+                                />
+                                <InputError message={errors.api_key} />
+                            </div>
+
                             <div className="flex items-center gap-2">
                                 <Checkbox
                                     id="is_active"
                                     name="is_active"
                                     value="1"
-                                    defaultChecked={
-                                        company?.is_active ?? true
-                                    }
+                                    defaultChecked={company?.is_active ?? true}
                                 />
-                                <Label htmlFor="is_active" className="font-normal">
+                                <Label
+                                    htmlFor="is_active"
+                                    className="font-normal"
+                                >
                                     Active
                                 </Label>
                                 <InputError message={errors.is_active} />

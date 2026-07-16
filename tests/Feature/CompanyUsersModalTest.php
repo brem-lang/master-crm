@@ -16,9 +16,9 @@ test('parent admin viewing a company receives its users as inertia props', funct
     $otherCompany = Company::factory()->create();
 
     $companyUser = User::factory()->create(['company_id' => $company->id]);
-    $companyUser->assignRole('agent');
+    $companyUser->assignRole('sales-rep');
 
-    User::factory()->create(['company_id' => $otherCompany->id])->assignRole('agent');
+    User::factory()->create(['company_id' => $otherCompany->id])->assignRole('sales-rep');
 
     $response = $this->actingAs($parentAdmin)->get(route('companies.index', ['view_company' => $company->id]));
 
@@ -41,7 +41,7 @@ test('parent admin can create a user directly into a company', function () {
         'email' => 'new-agent@example.com',
         'password' => 'password',
         'password_confirmation' => 'password',
-        'role' => 'agent',
+        'role' => 'sales-rep',
     ]);
 
     $response->assertRedirect();
@@ -49,7 +49,7 @@ test('parent admin can create a user directly into a company', function () {
     $user = User::where('email', 'new-agent@example.com')->first();
     expect($user)->not->toBeNull();
     expect($user->company_id)->toBe($company->id);
-    expect($user->hasRole('agent'))->toBeTrue();
+    expect($user->hasRole('sales-rep'))->toBeTrue();
 });
 
 test('creating a company user cannot be assigned the parent-admin role', function () {
@@ -75,7 +75,7 @@ test('parent admin can remove a user from a company without deleting the account
 
     $company = Company::factory()->create();
     $companyUser = User::factory()->create(['company_id' => $company->id]);
-    $companyUser->assignRole('agent');
+    $companyUser->assignRole('sales-rep');
 
     $response = $this->actingAs($parentAdmin)->delete(route('companies.users.destroy', [$company, $companyUser]));
 
@@ -93,7 +93,7 @@ test('removing a user via a mismatched company returns 404', function () {
     $company = Company::factory()->create();
     $otherCompany = Company::factory()->create();
     $companyUser = User::factory()->create(['company_id' => $company->id]);
-    $companyUser->assignRole('agent');
+    $companyUser->assignRole('sales-rep');
 
     $response = $this->actingAs($parentAdmin)->delete(route('companies.users.destroy', [$otherCompany, $companyUser]));
 
@@ -112,7 +112,7 @@ test('child admin cannot create a user via the company users endpoint', function
         'email' => 'new-agent@example.com',
         'password' => 'password',
         'password_confirmation' => 'password',
-        'role' => 'agent',
+        'role' => 'sales-rep',
     ]);
 
     $response->assertForbidden();
@@ -125,7 +125,7 @@ test('child admin cannot remove a user via the company users endpoint', function
     $childAdmin->assignRole('child-admin');
 
     $companyUser = User::factory()->create(['company_id' => $company->id]);
-    $companyUser->assignRole('agent');
+    $companyUser->assignRole('sales-rep');
 
     $response = $this->actingAs($childAdmin)->delete(route('companies.users.destroy', [$company, $companyUser]));
 

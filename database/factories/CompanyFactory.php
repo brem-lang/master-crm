@@ -22,6 +22,8 @@ class CompanyFactory extends Factory
         return [
             'name' => $name,
             'slug' => Company::generateUniqueSlug($name),
+            'api_url' => fake()->url(),
+            'api_key' => fake()->unique()->uuid(),
             'is_active' => true,
         ];
     }

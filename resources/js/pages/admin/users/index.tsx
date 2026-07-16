@@ -52,7 +52,7 @@ import {
 } from '@/components/ui/table';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { useRowSelection } from '@/hooks/use-row-selection';
-import { ROLE_BADGE_CLASSES } from '@/lib/role-badge';
+import { ROLE_BADGE_CLASSES, roleLabel } from '@/lib/role-badge';
 import { index as usersIndex } from '@/routes/users';
 import type { Auth, Company, Paginator, User } from '@/types';
 
@@ -66,7 +66,7 @@ type Stats = {
     total: number;
     parent_admin: number;
     child_admin: number;
-    agent: number;
+    sales_rep: number;
 };
 
 type PageProps = {
@@ -132,11 +132,8 @@ export default function UsersIndex() {
                             value={stats.parent_admin}
                         />
                     )}
-                    <StatCard
-                        label="Child admins"
-                        value={stats.child_admin}
-                    />
-                    <StatCard label="Agents" value={stats.agent} />
+                    <StatCard label="Child admins" value={stats.child_admin} />
+                    <StatCard label="Sales Reps" value={stats.sales_rep} />
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -166,11 +163,8 @@ export default function UsersIndex() {
                             <SelectGroup>
                                 <SelectItem value="all">All roles</SelectItem>
                                 {roles.map((roleName) => (
-                                    <SelectItem
-                                        key={roleName}
-                                        value={roleName}
-                                    >
-                                        {roleName}
+                                    <SelectItem key={roleName} value={roleName}>
+                                        {roleLabel(roleName)}
                                     </SelectItem>
                                 ))}
                             </SelectGroup>
@@ -235,7 +229,9 @@ export default function UsersIndex() {
                                                   : false
                                         }
                                         onCheckedChange={(checked) =>
-                                            selection.toggleAll(checked === true)
+                                            selection.toggleAll(
+                                                checked === true,
+                                            )
                                         }
                                         aria-label="Select all"
                                     />
@@ -300,7 +296,7 @@ export default function UsersIndex() {
                                                         ]
                                                     }
                                                 >
-                                                    {role.name}
+                                                    {roleLabel(role.name)}
                                                 </Badge>
                                             ))}
                                         </TableCell>

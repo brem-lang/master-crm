@@ -1,0 +1,81 @@
+<?php
+
+namespace App\Models;
+
+use Database\Factories\LeadFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
+
+/**
+ * @property int $id
+ * @property int $company_id
+ * @property string $external_id
+ * @property string|null $request_id
+ * @property string|null $first_name
+ * @property string|null $last_name
+ * @property string|null $email
+ * @property string|null $mobile
+ * @property string|null $country_code
+ * @property string|null $ip_address
+ * @property string|null $status
+ * @property string|null $affiliate_name
+ * @property bool $is_ftd
+ * @property string|null $offer_name
+ * @property array<string, mixed>|null $meta
+ * @property Carbon|null $lead_created_at
+ * @property Carbon|null $synced_at
+ * @property Carbon|null $synced_to_parent_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ */
+#[Fillable([
+    'company_id',
+    'external_id',
+    'request_id',
+    'first_name',
+    'last_name',
+    'email',
+    'mobile',
+    'country_code',
+    'ip_address',
+    'status',
+    'affiliate_name',
+    'is_ftd',
+    'offer_name',
+    'meta',
+    'lead_created_at',
+    'synced_at',
+    'synced_to_parent_at',
+])]
+class Lead extends Model
+{
+    /** @use HasFactory<LeadFactory> */
+    use HasFactory;
+
+    /**
+     * @return BelongsTo<Company, $this>
+     */
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'is_ftd' => 'boolean',
+            'meta' => 'array',
+            'lead_created_at' => 'datetime',
+            'synced_at' => 'datetime',
+            'synced_to_parent_at' => 'datetime',
+        ];
+    }
+}

@@ -45,9 +45,9 @@ test('users can be filtered by role', function () {
 
     $company = Company::factory()->create();
     User::factory()->create(['company_id' => $company->id])->assignRole('child-admin');
-    User::factory()->create(['company_id' => $company->id])->assignRole('agent');
+    User::factory()->create(['company_id' => $company->id])->assignRole('sales-rep');
 
-    $response = $this->actingAs($parentAdmin)->get(route('users.index', ['role' => 'agent']));
+    $response = $this->actingAs($parentAdmin)->get(route('users.index', ['role' => 'sales-rep']));
 
     $response->assertOk();
     $users = $response->inertiaPage()['props']['users'];

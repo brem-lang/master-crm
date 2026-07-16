@@ -31,8 +31,8 @@ test('child admin only sees users in their own company', function () {
     $childAdmin = User::factory()->create(['company_id' => $companyA->id]);
     $childAdmin->assignRole('child-admin');
 
-    User::factory()->create(['company_id' => $companyA->id])->assignRole('agent');
-    User::factory()->create(['company_id' => $companyB->id])->assignRole('agent');
+    User::factory()->create(['company_id' => $companyA->id])->assignRole('sales-rep');
+    User::factory()->create(['company_id' => $companyB->id])->assignRole('sales-rep');
 
     $response = $this->actingAs($childAdmin)->get(route('users.index'));
 
@@ -48,12 +48,12 @@ test('child admin cannot update a user from a different company', function () {
     $childAdmin->assignRole('child-admin');
 
     $otherCompanyUser = User::factory()->create(['company_id' => $companyB->id]);
-    $otherCompanyUser->assignRole('agent');
+    $otherCompanyUser->assignRole('sales-rep');
 
     $response = $this->actingAs($childAdmin)->put(route('users.update', $otherCompanyUser), [
         'name' => 'Hacked Name',
         'email' => $otherCompanyUser->email,
-        'role' => 'agent',
+        'role' => 'sales-rep',
     ]);
 
     $response->assertForbidden();
@@ -108,7 +108,7 @@ test('child admin created users are forced into the acting child admin own compa
         'email' => 'new-agent@example.com',
         'password' => 'password',
         'password_confirmation' => 'password',
-        'role' => 'agent',
+        'role' => 'sales-rep',
         'company_id' => (string) $otherCompany->id,
     ]);
 
@@ -143,7 +143,7 @@ test('child admin cannot impersonate a user outside their company', function () 
     $childAdmin->assignRole('child-admin');
 
     $otherCompanyUser = User::factory()->create(['company_id' => $companyB->id]);
-    $otherCompanyUser->assignRole('agent');
+    $otherCompanyUser->assignRole('sales-rep');
 
     $response = $this->actingAs($childAdmin)->post(route('users.impersonate.start', $otherCompanyUser));
 

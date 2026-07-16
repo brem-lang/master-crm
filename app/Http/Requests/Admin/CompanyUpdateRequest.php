@@ -26,6 +26,14 @@ class CompanyUpdateRequest extends FormRequest
                 'max:255',
                 Rule::unique(Company::class, 'name')->ignore($this->route('company')?->id),
             ],
+            'website' => ['nullable', 'string', 'max:255', 'url'],
+            'api_url' => ['required', 'string', 'max:255', 'url'],
+            'api_key' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique(Company::class, 'api_key')->ignore($this->route('company')?->id),
+            ],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

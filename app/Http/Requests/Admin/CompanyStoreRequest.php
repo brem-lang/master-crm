@@ -20,6 +20,9 @@ class CompanyStoreRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255', 'unique:'.Company::class.',name'],
+            'website' => ['nullable', 'string', 'max:255', 'url'],
+            'api_url' => ['required', 'string', 'max:255', 'url'],
+            'api_key' => ['required', 'string', 'max:255', 'unique:'.Company::class.',api_key'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

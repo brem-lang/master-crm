@@ -34,7 +34,7 @@ class UserController extends Controller
                 'total' => $scopedUsers()->count(),
                 'parent_admin' => $scopedUsers()->role('parent-admin')->count(),
                 'child_admin' => $scopedUsers()->role('child-admin')->count(),
-                'agent' => $scopedUsers()->role('agent')->count(),
+                'sales_rep' => $scopedUsers()->role('sales-rep')->count(),
             ],
             'users' => User::with(['roles', 'company'])
                 ->when($actingUser->company_id, fn ($query) => $query->where('company_id', $actingUser->company_id))

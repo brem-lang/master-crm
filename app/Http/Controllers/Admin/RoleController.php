@@ -14,7 +14,7 @@ use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
 {
-    protected const BUILT_IN_ROLES = ['parent-admin', 'child-admin', 'agent'];
+    protected const BUILT_IN_ROLES = ['parent-admin', 'child-admin', 'sales-rep'];
 
     public function index(Request $request): Response
     {

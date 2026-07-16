@@ -13,6 +13,10 @@ export type Company = {
     id: number;
     name: string;
     slug?: string;
+    website?: string | null;
+    website_status?: 'online' | 'offline' | null;
+    api_url?: string;
+    api_key?: string;
     is_active?: boolean;
     users_count?: number;
 };
@@ -30,6 +34,26 @@ export type User = {
     created_at: string;
     updated_at: string;
     [key: string]: unknown;
+};
+
+export type Lead = {
+    id: number;
+    company_id: number;
+    external_id: string;
+    request_id: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    mobile: string | null;
+    country_code: string | null;
+    ip_address: string | null;
+    status: string | null;
+    affiliate_name: string | null;
+    is_ftd: boolean;
+    offer_name: string | null;
+    meta: Record<string, unknown> | null;
+    lead_created_at: string | null;
+    company?: Pick<Company, 'id' | 'name'> | null;
 };
 
 export type Auth = {

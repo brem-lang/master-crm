@@ -20,13 +20,28 @@ class RoleSeeder extends Seeder
         $manageUsers = Permission::firstOrCreate(['name' => 'manage-users']);
         $impersonateUsers = Permission::firstOrCreate(['name' => 'impersonate-users']);
         $manageRoles = Permission::firstOrCreate(['name' => 'manage-roles']);
+        $viewAllCustomers = Permission::firstOrCreate(['name' => 'view-all-customers']);
+        $viewCompanyCustomers = Permission::firstOrCreate(['name' => 'view-company-customers']);
+        $viewReports = Permission::firstOrCreate(['name' => 'view-reports']);
+        $manageSettings = Permission::firstOrCreate(['name' => 'manage-settings']);
+        $manageLeads = Permission::firstOrCreate(['name' => 'manage-leads']);
+        $logActivities = Permission::firstOrCreate(['name' => 'log-activities']);
 
         Role::firstOrCreate(['name' => 'parent-admin'])
-            ->syncPermissions([$manageCompanies, $manageUsers, $impersonateUsers, $manageRoles]);
+            ->syncPermissions([
+                $manageCompanies,
+                $manageUsers,
+                $impersonateUsers,
+                $manageRoles,
+                $viewAllCustomers,
+                $viewReports,
+                $manageSettings,
+            ]);
 
         Role::firstOrCreate(['name' => 'child-admin'])
-            ->syncPermissions([$manageUsers, $impersonateUsers]);
+            ->syncPermissions([$manageUsers, $impersonateUsers, $viewCompanyCustomers, $viewReports]);
 
-        Role::firstOrCreate(['name' => 'agent']);
+        Role::firstOrCreate(['name' => 'sales-rep'])
+            ->syncPermissions([$manageLeads, $logActivities]);
     }
 }

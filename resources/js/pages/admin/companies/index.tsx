@@ -1,5 +1,12 @@
 import { Form, Head, router, usePage } from '@inertiajs/react';
-import { MoreHorizontal, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import {
+    Download,
+    MoreHorizontal,
+    Pencil,
+    Plus,
+    Search,
+    Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import CompanyController from '@/actions/App/Http/Controllers/Admin/CompanyController';
 import { CompanyFormDialog } from '@/components/admin/company-form-dialog';
@@ -70,14 +77,14 @@ type PageProps = {
 export default function CompaniesIndex() {
     const { companies, filters, stats, viewCompany, companyUsers } =
         usePage<PageProps>().props;
-    const [editingCompany, setEditingCompany] = useState<Company | null>(
-        null,
-    );
+    const [editingCompany, setEditingCompany] = useState<Company | null>(null);
     const [createOpen, setCreateOpen] = useState(false);
     const [search, setSearch] = useState(filters.search);
     const selection = useRowSelection(companies.data, companies.current_page);
 
-    const applyFilters = (next: Partial<Filters & { view_company?: number }>) => {
+    const applyFilters = (
+        next: Partial<Filters & { view_company?: number }>,
+    ) => {
         router.get(
             companiesIndex().url,
             {
@@ -198,7 +205,9 @@ export default function CompaniesIndex() {
                                                   : false
                                         }
                                         onCheckedChange={(checked) =>
-                                            selection.toggleAll(checked === true)
+                                            selection.toggleAll(
+                                                checked === true,
+                                            )
                                         }
                                         aria-label="Select all"
                                     />
@@ -269,34 +278,93 @@ export default function CompaniesIndex() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
-                                        <Dialog>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                    >
-                                                        <MoreHorizontal className="size-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem
-                                                        onSelect={() =>
-                                                            setEditingCompany(
-                                                                company,
-                                                            )
-                                                        }
-                                                    >
-                                                        <Pencil />
-                                                        Edit
-                                                    </DropdownMenuItem>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                >
+                                                    <MoreHorizontal className="size-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem
+                                                    onSelect={() =>
+                                                        setEditingCompany(
+                                                            company,
+                                                        )
+                                                    }
+                                                >
+                                                    <Pencil />
+                                                    Edit
+                                                </DropdownMenuItem>
 
+                                                <Dialog>
+                                                    <DialogTrigger asChild>
+                                                        <DropdownMenuItem
+                                                            onSelect={(event) =>
+                                                                event.preventDefault()
+                                                            }
+                                                        >
+                                                            <Download />
+                                                            Pull data
+                                                        </DropdownMenuItem>
+                                                    </DialogTrigger>
+
+                                                    <DialogContent>
+                                                        <DialogTitle>
+                                                            Pull data from{' '}
+                                                            {company.name}?
+                                                        </DialogTitle>
+                                                        <DialogDescription>
+                                                            This will contact{' '}
+                                                            {company.name}
+                                                            &apos;s API to check
+                                                            for new data. It
+                                                            won&apos;t change
+                                                            anything in this
+                                                            CRM.
+                                                        </DialogDescription>
+
+                                                        <DialogFooter className="gap-2">
+                                                            <DialogClose
+                                                                asChild
+                                                            >
+                                                                <Button variant="secondary">
+                                                                    Cancel
+                                                                </Button>
+                                                            </DialogClose>
+
+                                                            <DialogClose
+                                                                asChild
+                                                            >
+                                                                <Button
+                                                                    onClick={() =>
+                                                                        router.post(
+                                                                            CompanyController.pullData(
+                                                                                company.id,
+                                                                            )
+                                                                                .url,
+                                                                            {},
+                                                                            {
+                                                                                preserveScroll: true,
+                                                                            },
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Download />
+                                                                    Pull data
+                                                                </Button>
+                                                            </DialogClose>
+                                                        </DialogFooter>
+                                                    </DialogContent>
+                                                </Dialog>
+
+                                                <Dialog>
                                                     <DialogTrigger asChild>
                                                         <DropdownMenuItem
                                                             variant="destructive"
-                                                            onSelect={(
-                                                                event,
-                                                            ) =>
+                                                            onSelect={(event) =>
                                                                 event.preventDefault()
                                                             }
                                                         >
@@ -304,51 +372,58 @@ export default function CompaniesIndex() {
                                                             Delete
                                                         </DropdownMenuItem>
                                                     </DialogTrigger>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
 
-                                            <DialogContent>
-                                                <DialogTitle>
-                                                    Delete {company.name}?
-                                                </DialogTitle>
-                                                <DialogDescription>
-                                                    This will permanently
-                                                    delete this company. Users
-                                                    assigned to it will keep
-                                                    their account but lose
-                                                    their company assignment.
-                                                    This action cannot be
-                                                    undone.
-                                                </DialogDescription>
+                                                    <DialogContent>
+                                                        <DialogTitle>
+                                                            Delete{' '}
+                                                            {company.name}?
+                                                        </DialogTitle>
+                                                        <DialogDescription>
+                                                            This will
+                                                            permanently delete
+                                                            this company. Users
+                                                            assigned to it will
+                                                            keep their account
+                                                            but lose their
+                                                            company assignment.
+                                                            This action cannot
+                                                            be undone.
+                                                        </DialogDescription>
 
-                                                <DialogFooter className="gap-2">
-                                                    <DialogClose asChild>
-                                                        <Button variant="secondary">
-                                                            Cancel
-                                                        </Button>
-                                                    </DialogClose>
-
-                                                    <Form
-                                                        {...CompanyController.destroy.form(
-                                                            company.id,
-                                                        )}
-                                                    >
-                                                        {({ processing }) => (
-                                                            <Button
-                                                                variant="destructive"
-                                                                disabled={
-                                                                    processing
-                                                                }
-                                                                type="submit"
+                                                        <DialogFooter className="gap-2">
+                                                            <DialogClose
+                                                                asChild
                                                             >
-                                                                <Trash2 />
-                                                                Delete
-                                                            </Button>
-                                                        )}
-                                                    </Form>
-                                                </DialogFooter>
-                                            </DialogContent>
-                                        </Dialog>
+                                                                <Button variant="secondary">
+                                                                    Cancel
+                                                                </Button>
+                                                            </DialogClose>
+
+                                                            <Form
+                                                                {...CompanyController.destroy.form(
+                                                                    company.id,
+                                                                )}
+                                                            >
+                                                                {({
+                                                                    processing,
+                                                                }) => (
+                                                                    <Button
+                                                                        variant="destructive"
+                                                                        disabled={
+                                                                            processing
+                                                                        }
+                                                                        type="submit"
+                                                                    >
+                                                                        <Trash2 />
+                                                                        Delete
+                                                                    </Button>
+                                                                )}
+                                                            </Form>
+                                                        </DialogFooter>
+                                                    </DialogContent>
+                                                </Dialog>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </TableCell>
                                 </TableRow>
                             ))}

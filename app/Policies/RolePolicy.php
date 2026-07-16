@@ -24,6 +24,6 @@ class RolePolicy
 
     public function delete(User $user, Role $role): bool
     {
-        return $user->can('manage-roles') && ! in_array($role->name, ['parent-admin', 'child-admin', 'agent'], true);
+        return $user->can('manage-roles') && ! in_array($role->name, ['parent-admin', 'child-admin', 'sales-rep'], true);
     }
 }

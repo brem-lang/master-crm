@@ -21,6 +21,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { roleLabel } from '@/lib/role-badge';
 import type { Company, User } from '@/types';
 
 const NO_COMPANY = 'none';
@@ -43,7 +44,7 @@ export function UserFormDialog({
     const isEdit = !!user;
     const [role, setRole] = useState(
         user?.roles?.[0]?.name ??
-            roles.find((roleName) => roleName === 'agent') ??
+            roles.find((roleName) => roleName === 'sales-rep') ??
             roles[0] ??
             '',
     );
@@ -168,7 +169,7 @@ export function UserFormDialog({
                                                     key={roleName}
                                                     value={roleName}
                                                 >
-                                                    {roleName}
+                                                    {roleLabel(roleName)}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>

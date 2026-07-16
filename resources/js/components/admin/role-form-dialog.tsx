@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Role } from '@/types';
 
-const BUILT_IN_ROLES = ['parent-admin', 'child-admin', 'agent'];
+const BUILT_IN_ROLES = ['parent-admin', 'child-admin', 'sales-rep'];
 
 type Props = {
     open: boolean;
@@ -107,9 +107,7 @@ export function RoleFormDialog({
                                                     )
                                                 }
                                             />
-                                            {selected.includes(
-                                                permission,
-                                            ) && (
+                                            {selected.includes(permission) && (
                                                 <input
                                                     type="hidden"
                                                     name="permissions[]"

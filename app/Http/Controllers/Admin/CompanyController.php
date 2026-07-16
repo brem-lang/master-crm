@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\CompanyStoreRequest;
 use App\Http\Requests\Admin\CompanyUpdateRequest;
 use App\Models\Company;
 use App\Models\User;
+use App\Services\CompanyLeadsSyncer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -91,6 +92,20 @@ class CompanyController extends Controller
         $company->delete();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Company deleted.')]);
+
+        return to_route('companies.index');
+    }
+
+    public function pullData(Company $company, CompanyLeadsSyncer $syncer): RedirectResponse
+    {
+        $this->authorize('update', $company);
+
+        $result = $syncer->sync($company);
+
+        Inertia::flash('toast', [
+            'type' => $result['success'] ? 'success' : 'error',
+            'message' => $result['message'],
+        ]);
 
         return to_route('companies.index');
     }

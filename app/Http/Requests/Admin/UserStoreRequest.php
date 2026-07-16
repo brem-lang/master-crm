@@ -24,8 +24,8 @@ class UserStoreRequest extends FormRequest
     public function rules(): array
     {
         $assignableRoles = $this->user()->hasRole('parent-admin')
-            ? ['parent-admin', 'child-admin', 'agent']
-            : ['child-admin', 'agent'];
+            ? ['parent-admin', 'child-admin', 'sales-rep']
+            : ['child-admin', 'sales-rep'];
 
         return [
             'name' => $this->nameRules(),

@@ -44,7 +44,7 @@ import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { index as rolesIndex } from '@/routes/roles';
 import type { Paginator, Role } from '@/types';
 
-const BUILT_IN_ROLES = ['parent-admin', 'child-admin', 'agent'];
+const BUILT_IN_ROLES = ['parent-admin', 'child-admin', 'sales-rep'];
 
 type Filters = {
     search: string;
@@ -179,9 +179,7 @@ export default function RolesIndex() {
                                                 {role.permissions?.map(
                                                     (permission) => (
                                                         <Badge
-                                                            key={
-                                                                permission.id
-                                                            }
+                                                            key={permission.id}
                                                             variant="secondary"
                                                         >
                                                             {permission.name}
@@ -242,8 +240,7 @@ export default function RolesIndex() {
                                                     <DialogDescription>
                                                         This will permanently
                                                         delete this role. This
-                                                        action cannot be
-                                                        undone.
+                                                        action cannot be undone.
                                                     </DialogDescription>
 
                                                     <DialogFooter className="gap-2">
