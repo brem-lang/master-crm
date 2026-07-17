@@ -5,6 +5,7 @@ import {
     LayoutGrid,
     Settings,
     ShieldCheck,
+    UsersRound,
     Users,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
@@ -23,6 +24,7 @@ import {
 import { dashboard } from '@/routes';
 import { index as companiesIndex } from '@/routes/companies';
 import { index as directoryIndex } from '@/routes/directory';
+import { index as leadsIndex } from '@/routes/leads';
 import { index as rolesIndex } from '@/routes/roles';
 import { index as usersIndex } from '@/routes/users';
 import type { Auth, NavItem } from '@/types';
@@ -60,12 +62,26 @@ export function AppSidebar() {
             : []),
     ];
 
+    const canViewLeads =
+        (!!auth.company &&
+            auth.permissions?.includes('view-company-customers')) ||
+        auth.permissions?.includes('view-all-customers');
+
     const mainNavItems: NavItem[] = [
         {
             title: 'Dashboard',
             href: dashboard(),
             icon: LayoutGrid,
         },
+        ...(canViewLeads
+            ? [
+                  {
+                      title: 'Leads',
+                      href: leadsIndex(),
+                      icon: UsersRound,
+                  },
+              ]
+            : []),
         ...(auth.permissions?.includes('manage-companies')
             ? [
                   {

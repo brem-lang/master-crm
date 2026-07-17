@@ -14,3 +14,4 @@ require __DIR__.'/users.php';
 require __DIR__.'/roles.php';
 require __DIR__.'/companies.php';
 require __DIR__.'/directory.php';
+require __DIR__.'/leads.php';

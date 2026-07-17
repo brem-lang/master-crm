@@ -157,6 +157,74 @@ test('a stale cursor is ignored and a full re-pull happens when local leads were
     expect(Lead::where('company_id', $company->id)->count())->toBe(2);
 });
 
+test('a failure on a later page preserves earlier pages and reports gracefully, not a 500', function () {
+    $company = Company::factory()->create(['api_url' => 'https://example.com/functions/v1/get-leads']);
+
+    Http::fake([
+        'https://example.com/functions/v1/get-leads*' => function ($request) {
+            $page = (int) queryParam($request, 'page');
+
+            if ($page === 1) {
+                return Http::response(null, 500);
+            }
+
+            return Http::response([
+                'success' => true,
+                'total' => 2,
+                'all_leads_count' => 2,
+                'page' => $page,
+                'pages' => 2,
+                'next_cursor' => 'id-1',
+                'next_since' => '2026-07-01T00:00:00Z',
+                'data' => [leadPayload('id-1', '2026-07-01T00:00:00Z')],
+            ]);
+        },
+    ]);
+
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $response = $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
+
+    // No 500 — the controller still gets a normal redirect with a friendly error toast.
+    $response->assertRedirect(route('companies.index'));
+    $response->assertInertiaFlash('toast.type', 'error');
+
+    // Page 0's lead was still saved before page 1 failed.
+    expect(Lead::where('company_id', $company->id)->count())->toBe(1);
+});
+
+test('a lead item with no id is skipped instead of aborting the whole sync', function () {
+    $company = Company::factory()->create(['api_url' => 'https://example.com/functions/v1/get-leads']);
+
+    Http::fake([
+        'https://example.com/functions/v1/get-leads*' => Http::response([
+            'success' => true,
+            'total' => 2,
+            'all_leads_count' => 2,
+            'page' => 0,
+            'pages' => 1,
+            'next_cursor' => 'id-1',
+            'next_since' => '2026-07-01T00:00:00Z',
+            'data' => [
+                leadPayload('id-1', '2026-07-01T00:00:00Z'),
+                [...leadPayload('id-2', '2026-07-01T00:00:00Z'), 'id' => null],
+            ],
+        ]),
+    ]);
+
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $response = $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
+
+    $response->assertRedirect(route('companies.index'));
+    $response->assertInertiaFlash('toast.type', 'success');
+
+    expect(Lead::where('company_id', $company->id)->count())->toBe(1);
+    expect(Lead::where('external_id', 'id-1')->exists())->toBeTrue();
+});
+
 test('an unsafe api url never triggers a real request', function () {
     Http::fake();
 

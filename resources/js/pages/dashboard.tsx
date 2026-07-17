@@ -1,16 +1,37 @@
-import { DataPagination } from '@/components/data-pagination';
-import Heading from '@/components/heading';
-import { StatCard } from '@/components/stat-card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Head, router, usePage } from '@inertiajs/react';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+    Activity,
+    AlertTriangle,
+    Clock,
+    RefreshCw,
+    TrendingUp,
+    Users,
+} from 'lucide-react';
+import {
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Cell,
+    Line,
+    LineChart,
+    Pie,
+    PieChart,
+    XAxis,
+    YAxis,
+} from 'recharts';
+import { DateRangeFilter } from '@/components/dashboard/date-range-filter';
+import { MetricCard } from '@/components/dashboard/metric-card';
+import Heading from '@/components/heading';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    ChartContainer,
+    ChartLegend,
+    ChartLegendContent,
+    ChartTooltip,
+    ChartTooltipContent,
+} from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 import { PlaceholderPattern } from '@/components/ui/placeholder-pattern';
 import {
     Select,
@@ -28,342 +49,418 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { dashboard } from '@/routes';
-import type { Company, Lead, Paginator } from '@/types';
-import { Head, router, usePage } from '@inertiajs/react';
-import { Eye, Search } from 'lucide-react';
-import { useState } from 'react';
+import type { DashboardAnalytics, DashboardFilters, NamedTally } from '@/types';
 
-function metaLabel(key: string): string {
-    return key
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, (letter) => letter.toUpperCase());
+const leadsChartConfig: ChartConfig = {
+    leads: {
+        label: 'Leads',
+        theme: { light: '#2a78d6', dark: '#3987e5' },
+    },
+    ftd: {
+        label: 'FTD',
+        theme: { light: '#008300', dark: '#008300' },
+    },
+};
+
+const ADVERTISER_COLORS = [
+    { light: '#2a78d6', dark: '#3987e5' },
+    { light: '#008300', dark: '#008300' },
+    { light: '#e87ba4', dark: '#d55181' },
+    { light: '#eda100', dark: '#c98500' },
+    { light: '#1baf7a', dark: '#199e70' },
+];
+
+function advertiserChartConfig(advertisers: NamedTally[]): ChartConfig {
+    return advertisers.reduce<ChartConfig>((config, advertiser, index) => {
+        config[advertiser.name] = {
+            label: advertiser.name,
+            theme: ADVERTISER_COLORS[index % ADVERTISER_COLORS.length],
+        };
+
+        return config;
+    }, {});
 }
 
-function metaValue(value: unknown): string {
-    if (value === null || value === undefined || value === '') {
-        return '—';
-    }
-
-    if (typeof value === 'object') {
-        return JSON.stringify(value);
-    }
-
-    return String(value);
-}
-
-function LeadDetailsDialog({
-    lead,
-    open,
-    onOpenChange,
+function TopTable({
+    title,
+    rows,
+    countLabel,
+    countKey,
 }: {
-    lead: Lead | null;
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
+    title: string;
+    rows: NamedTally[];
+    countLabel: string;
+    countKey: 'leads' | 'sent';
 }) {
-    if (!lead) {
-        return null;
-    }
-
-    const fields: [string, string][] = [
-        ['Email', metaValue(lead.email)],
-        ['Mobile', metaValue(lead.mobile)],
-        ['Country', metaValue(lead.country_code)],
-        ['IP address', metaValue(lead.ip_address)],
-        ['Affiliate', metaValue(lead.affiliate_name)],
-        ['Offer', metaValue(lead.offer_name)],
-        ['FTD', lead.is_ftd ? 'Yes' : 'No'],
-        [
-            'Created',
-            lead.lead_created_at
-                ? new Date(lead.lead_created_at).toLocaleString()
-                : '—',
-        ],
-    ];
-
-    const metaEntries = Object.entries(lead.meta ?? {}).filter(
-        ([, value]) => value !== null && value !== '' && value !== undefined,
-    );
-
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                    <DialogTitle>
-                        {[lead.first_name, lead.last_name]
-                            .filter(Boolean)
-                            .join(' ') || 'Lead details'}
-                    </DialogTitle>
-                    <DialogDescription>
-                        {lead.status ? (
-                            <Badge variant="outline">{lead.status}</Badge>
-                        ) : null}
-                    </DialogDescription>
-                </DialogHeader>
-
-                <div className="max-h-96 space-y-4 overflow-y-auto">
-                    <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                        {fields.map(([label, value]) => (
-                            <div key={label}>
-                                <dt className="text-muted-foreground">
-                                    {label}
-                                </dt>
-                                <dd className="font-medium break-words">
-                                    {value}
-                                </dd>
-                            </div>
-                        ))}
-                    </dl>
-
-                    {metaEntries.length > 0 && (
-                        <div>
-                            <p className="mb-2 text-sm font-medium text-muted-foreground">
-                                Additional details
-                            </p>
-                            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                                {metaEntries.map(([key, value]) => (
-                                    <div key={key}>
-                                        <dt className="text-muted-foreground">
-                                            {metaLabel(key)}
-                                        </dt>
-                                        <dd className="font-medium break-words">
-                                            {metaValue(value)}
-                                        </dd>
-                                    </div>
-                                ))}
-                            </dl>
-                        </div>
-                    )}
-                </div>
-            </DialogContent>
-        </Dialog>
+        <Card className="gap-3 py-4">
+            <CardHeader className="px-4">
+                <CardTitle className="text-sm font-medium">{title}</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4">
+                {rows.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-muted-foreground">
+                        No data yet.
+                    </p>
+                ) : (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>
+                                    {title.replace('Top 5 ', '')}
+                                </TableHead>
+                                <TableHead className="text-right">
+                                    {countLabel}
+                                </TableHead>
+                                <TableHead className="text-right">
+                                    FTD
+                                </TableHead>
+                                <TableHead className="text-right">CR</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {rows.map((row) => (
+                                <TableRow key={row.name}>
+                                    <TableCell className="font-medium">
+                                        {row.name}
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                        {row[countKey]}
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                        {row.ftd}
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                        {row.cr.toFixed(1)}%
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                )}
+            </CardContent>
+        </Card>
     );
 }
 
-type LeadsMetrics = {
-    total: number;
-    rejected: number;
-    ftd: number;
-    byStatus: Record<string, number>;
-    leads: Paginator<Lead>;
-    companies?: Pick<Company, 'id' | 'name'>[];
-    filters: {
-        search: string;
-        status: string | null;
-        company_id: number | null;
-    };
-};
+function AnalyticsDashboard({ analytics }: { analytics: DashboardAnalytics }) {
+    const {
+        stats,
+        series,
+        topCountries,
+        topAffiliates,
+        topAdvertisers,
+        filters,
+        affiliateOptions,
+        advertiserOptions,
+    } = analytics;
 
-type PageProps = {
-    leadsMetrics: LeadsMetrics | null;
-};
-
-function LeadsDashboard({ leadsMetrics }: { leadsMetrics: LeadsMetrics }) {
-    const { total, rejected, ftd, byStatus, leads, companies, filters } =
-        leadsMetrics;
-    const [search, setSearch] = useState(filters.search);
-    const [viewingLead, setViewingLead] = useState<Lead | null>(null);
-
-    const applyFilters = (next: Partial<typeof filters>) => {
+    const applyFilters = (next: Partial<DashboardFilters>) => {
         router.get(
             dashboard().url,
-            {
-                ...filters,
-                ...next,
-                per_page: leads.per_page,
-                page: 1,
-            },
+            { ...filters, ...next },
             { preserveState: true, preserveScroll: true, replace: true },
         );
     };
 
-    const debouncedSearch = useDebouncedCallback((value: string) => {
-        applyFilters({ search: value });
-    }, 300);
+    const advertiserConfig = advertiserChartConfig(topAdvertisers);
 
     return (
-        <div className="space-y-6 p-4">
-            <Heading
-                title="Leads"
-                description={
-                    companies
-                        ? "Leads pulled from all companies' CRMs"
-                        : "Leads pulled from your company's CRM"
-                }
-            />
-
-            <div className="grid gap-4 sm:grid-cols-3">
-                <StatCard label="Total leads" value={total} />
-                <StatCard label="Rejected" value={rejected} />
-                <StatCard label="FTD" value={ftd} />
+        <div className="space-y-4 p-4">
+            <div className="flex items-center justify-between">
+                <Heading
+                    title="Dashboard"
+                    description="Performance overview and analytics"
+                />
+                <Button variant="outline" onClick={() => router.reload()}>
+                    <RefreshCw />
+                    Refresh
+                </Button>
             </div>
 
-            {/* {Object.keys(byStatus).length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                    {Object.entries(byStatus).map(([status, count]) => (
-                        <Badge key={status} variant="secondary">
-                            {status}: {count}
-                        </Badge>
-                    ))}
-                </div>
-            )} */}
-
-            <div className="flex flex-wrap items-center gap-2">
-                <div className="relative w-full max-w-xs">
-                    <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                        value={search}
-                        onChange={(event) => {
-                            setSearch(event.target.value);
-                            debouncedSearch(event.target.value);
-                        }}
-                        placeholder="Search by name or email…"
-                        className="pl-8"
+            <Card className="gap-0 py-3">
+                <CardContent className="flex flex-wrap items-center gap-2 px-4">
+                    <DateRangeFilter
+                        filters={filters}
+                        onChange={applyFilters}
                     />
-                </div>
 
-                <Select
-                    value={filters.status || 'all'}
-                    onValueChange={(value) =>
-                        applyFilters({ status: value === 'all' ? null : value })
-                    }
-                >
-                    <SelectTrigger className="w-40">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectGroup>
-                            <SelectItem value="all">All statuses</SelectItem>
-                            {Object.keys(byStatus).map((status) => (
-                                <SelectItem key={status} value={status}>
-                                    {status}
-                                </SelectItem>
-                            ))}
-                        </SelectGroup>
-                    </SelectContent>
-                </Select>
-
-                {companies && (
                     <Select
-                        value={
-                            filters.company_id
-                                ? String(filters.company_id)
-                                : 'all'
-                        }
+                        value={filters.advertiser ?? 'all'}
                         onValueChange={(value) =>
                             applyFilters({
-                                company_id:
-                                    value === 'all' ? null : Number(value),
+                                advertiser: value === 'all' ? null : value,
                             })
                         }
                     >
-                        <SelectTrigger className="w-48">
+                        <SelectTrigger className="w-44">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectGroup>
                                 <SelectItem value="all">
-                                    All companies
+                                    All Advertisers
                                 </SelectItem>
-                                {companies.map((company) => (
+                                {advertiserOptions.map((advertiser) => (
                                     <SelectItem
-                                        key={company.id}
-                                        value={String(company.id)}
+                                        key={advertiser}
+                                        value={advertiser}
                                     >
-                                        {company.name}
+                                        {advertiser}
                                     </SelectItem>
                                 ))}
                             </SelectGroup>
                         </SelectContent>
                     </Select>
-                )}
-            </div>
 
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Name</TableHead>
-                            {companies && <TableHead>Company</TableHead>}
-                            <TableHead>Email</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Affiliate</TableHead>
-                            <TableHead>Offer</TableHead>
-                            <TableHead>Created</TableHead>
-                            <TableHead className="w-px" />
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {leads.data.map((lead) => (
-                            <TableRow key={lead.id}>
-                                <TableCell className="font-medium">
-                                    {[lead.first_name, lead.last_name]
-                                        .filter(Boolean)
-                                        .join(' ') || '—'}
-                                </TableCell>
-                                {companies && (
-                                    <TableCell>
-                                        {lead.company?.name ?? '—'}
-                                    </TableCell>
-                                )}
-                                <TableCell>{lead.email ?? '—'}</TableCell>
-                                <TableCell>
-                                    {lead.status ? (
-                                        <Badge variant="outline">
-                                            {lead.status}
-                                        </Badge>
-                                    ) : (
-                                        '—'
-                                    )}
-                                </TableCell>
-                                <TableCell>
-                                    {lead.affiliate_name ?? '—'}
-                                </TableCell>
-                                <TableCell>{lead.offer_name ?? '—'}</TableCell>
-                                <TableCell>
-                                    {lead.lead_created_at
-                                        ? new Date(
-                                              lead.lead_created_at,
-                                          ).toLocaleDateString()
-                                        : '—'}
-                                </TableCell>
-                                <TableCell>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        aria-label={`View ${[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'lead'}`}
-                                        onClick={() => setViewingLead(lead)}
+                    <Select
+                        value={filters.affiliate ?? 'all'}
+                        onValueChange={(value) =>
+                            applyFilters({
+                                affiliate: value === 'all' ? null : value,
+                            })
+                        }
+                    >
+                        <SelectTrigger className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <SelectItem value="all">
+                                    All Affiliates
+                                </SelectItem>
+                                {affiliateOptions.map((affiliate) => (
+                                    <SelectItem
+                                        key={affiliate}
+                                        value={affiliate}
                                     >
-                                        <Eye className="size-4" />
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                                        {affiliate}
+                                    </SelectItem>
+                                ))}
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                </CardContent>
+            </Card>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <MetricCard
+                    icon={TrendingUp}
+                    label="Leads Sent"
+                    value={stats.sent}
+                    sublabel="Successfully"
+                    secondaryValue={stats.failed}
+                    secondaryLabel="Failed"
+                    secondaryClassName={
+                        stats.failed > 0
+                            ? 'text-red-600 dark:text-red-400'
+                            : undefined
+                    }
+                />
+                <MetricCard
+                    icon={Activity}
+                    label="Conversions"
+                    value={stats.ftd}
+                    sublabel="FTD"
+                    secondaryValue={`${stats.conversionRate.toFixed(2)}%`}
+                    secondaryLabel="CR"
+                    secondaryClassName="text-green-600 dark:text-green-400"
+                />
+                <MetricCard
+                    icon={Clock}
+                    label="Pending FTDs"
+                    value={stats.pendingFtd}
+                    sublabel="Awaiting release"
+                />
+                <MetricCard
+                    icon={AlertTriangle}
+                    label="Rejection Rate"
+                    value={`${stats.rejectionRate.toFixed(2)}%`}
+                    sublabel="Of distributions"
+                />
+                <MetricCard
+                    icon={Users}
+                    label="Total Leads"
+                    value={stats.total}
+                    sublabel="Distributed"
+                />
             </div>
 
-            <DataPagination paginator={leads} filters={filters} />
+            <Card className="py-4">
+                <CardHeader className="px-4">
+                    <CardTitle>Leads and Conversions</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4">
+                    <ChartContainer
+                        config={leadsChartConfig}
+                        className="aspect-auto h-75 w-full"
+                    >
+                        <LineChart data={series}>
+                            <CartesianGrid vertical={false} />
+                            <XAxis
+                                dataKey="label"
+                                tickLine={false}
+                                axisLine={false}
+                            />
+                            <YAxis
+                                tickLine={false}
+                                axisLine={false}
+                                allowDecimals={false}
+                            />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <ChartLegend content={<ChartLegendContent />} />
+                            <Line
+                                type="monotone"
+                                dataKey="leads"
+                                stroke="var(--color-leads)"
+                                strokeWidth={2}
+                                dot={false}
+                            />
+                            <Line
+                                type="monotone"
+                                dataKey="ftd"
+                                stroke="var(--color-ftd)"
+                                strokeWidth={2}
+                                dot={false}
+                            />
+                        </LineChart>
+                    </ChartContainer>
+                </CardContent>
+            </Card>
 
-            <LeadDetailsDialog
-                lead={viewingLead}
-                open={!!viewingLead}
-                onOpenChange={(open) => !open && setViewingLead(null)}
-            />
+            <div className="grid gap-4 lg:grid-cols-3">
+                <TopTable
+                    title="Top 5 Countries"
+                    rows={topCountries}
+                    countLabel="Leads"
+                    countKey="leads"
+                />
+                <TopTable
+                    title="Top 5 Advertisers"
+                    rows={topAdvertisers}
+                    countLabel="Sent"
+                    countKey="sent"
+                />
+                <TopTable
+                    title="Top 5 Affiliates"
+                    rows={topAffiliates}
+                    countLabel="Leads"
+                    countKey="leads"
+                />
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+                <Card className="py-4">
+                    <CardHeader className="px-4">
+                        <CardTitle>Leads by Country</CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4">
+                        {topCountries.length === 0 ? (
+                            <p className="py-8 text-center text-sm text-muted-foreground">
+                                No data yet.
+                            </p>
+                        ) : (
+                            <ChartContainer
+                                config={leadsChartConfig}
+                                className="aspect-auto h-62.5 w-full"
+                            >
+                                <BarChart data={topCountries} layout="vertical">
+                                    <CartesianGrid horizontal={false} />
+                                    <XAxis
+                                        type="number"
+                                        tickLine={false}
+                                        axisLine={false}
+                                        allowDecimals={false}
+                                    />
+                                    <YAxis
+                                        type="category"
+                                        dataKey="name"
+                                        tickLine={false}
+                                        axisLine={false}
+                                        width={40}
+                                    />
+                                    <ChartTooltip
+                                        content={<ChartTooltipContent />}
+                                    />
+                                    <ChartLegend
+                                        content={<ChartLegendContent />}
+                                    />
+                                    <Bar
+                                        dataKey="leads"
+                                        fill="var(--color-leads)"
+                                        radius={4}
+                                    />
+                                    <Bar
+                                        dataKey="ftd"
+                                        fill="var(--color-ftd)"
+                                        radius={4}
+                                    />
+                                </BarChart>
+                            </ChartContainer>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card className="py-4">
+                    <CardHeader className="px-4">
+                        <CardTitle>Performance by Advertiser</CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4">
+                        {topAdvertisers.length === 0 ? (
+                            <p className="py-8 text-center text-sm text-muted-foreground">
+                                No data yet.
+                            </p>
+                        ) : (
+                            <ChartContainer
+                                config={advertiserConfig}
+                                className="aspect-auto h-62.5 w-full"
+                            >
+                                <PieChart>
+                                    <ChartTooltip
+                                        content={<ChartTooltipContent />}
+                                    />
+                                    <ChartLegend
+                                        content={<ChartLegendContent />}
+                                    />
+                                    <Pie
+                                        data={topAdvertisers}
+                                        dataKey="sent"
+                                        nameKey="name"
+                                        innerRadius={50}
+                                        outerRadius={90}
+                                        paddingAngle={2}
+                                    >
+                                        {topAdvertisers.map((advertiser) => (
+                                            <Cell
+                                                key={advertiser.name}
+                                                fill={`var(--color-${advertiser.name})`}
+                                            />
+                                        ))}
+                                    </Pie>
+                                </PieChart>
+                            </ChartContainer>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }
 
+type PageProps = {
+    analytics: DashboardAnalytics | null;
+};
+
 export default function Dashboard() {
-    const { leadsMetrics } = usePage<PageProps>().props;
+    const { analytics } = usePage<PageProps>().props;
 
     return (
         <>
             <Head title="Dashboard" />
 
-            {leadsMetrics ? (
-                <LeadsDashboard leadsMetrics={leadsMetrics} />
+            {analytics ? (
+                <AnalyticsDashboard analytics={analytics} />
             ) : (
                 <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                     <div className="grid auto-rows-min gap-4 md:grid-cols-3">
@@ -377,7 +474,7 @@ export default function Dashboard() {
                             <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
                         </div>
                     </div>
-                    <div className="relative min-h-[100vh] flex-1 overflow-hidden rounded-xl border border-sidebar-border/70 md:min-h-min dark:border-sidebar-border">
+                    <div className="relative min-h-screen flex-1 overflow-hidden rounded-xl border border-sidebar-border/70 md:min-h-min dark:border-sidebar-border">
                         <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
                     </div>
                 </div>

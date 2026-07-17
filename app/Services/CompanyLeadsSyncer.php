@@ -11,6 +11,12 @@ class CompanyLeadsSyncer
     private const LIMIT = 100;
 
     /**
+     * Hard cap on pages processed per sync, guarding against a child API that
+     * misreports an absurd page count.
+     */
+    private const MAX_PAGES = 500;
+
+    /**
      * Fields from the child CRM payload that get their own column; everything
      * else on the item is preserved in `meta`.
      */
@@ -60,27 +66,45 @@ class CompanyLeadsSyncer
             ];
         }
 
-        $pages = $first['pages'] ?? 1;
+        $pages = min($first['pages'] ?? 1, self::MAX_PAGES);
         $pulled = 0;
+        $skipped = 0;
         $lastResponse = $first;
 
-        for ($page = 0; $page < $pages; $page++) {
-            $response = $page === 0 ? $first : $this->client->fetchPage($company, $page, self::LIMIT, $since);
-            $lastResponse = $response;
+        try {
+            for ($page = 0; $page < $pages; $page++) {
+                $response = $page === 0 ? $first : $this->client->fetchPage($company, $page, self::LIMIT, $since);
+                $lastResponse = $response;
 
-            $items = $response['data'] ?? [];
+                $items = $response['data'] ?? [];
 
-            if ($items === []) {
-                break;
+                if ($items === []) {
+                    break;
+                }
+
+                foreach ($items as $item) {
+                    if (blank($item['id'] ?? null)) {
+                        $skipped++;
+
+                        continue;
+                    }
+
+                    Lead::updateOrCreate(
+                        ['company_id' => $company->id, 'external_id' => $item['id']],
+                        $this->mapLead($item),
+                    );
+                    $pulled++;
+                }
             }
+        } catch (ChildCrmSyncException $e) {
+            // Partial progress from earlier pages in this run is already saved
+            // (each upsert commits independently), so report what went wrong
+            // rather than losing that work behind an uncaught exception.
+            return ['success' => false, 'pulled' => $pulled, 'message' => $e->getMessage()];
+        }
 
-            foreach ($items as $item) {
-                Lead::updateOrCreate(
-                    ['company_id' => $company->id, 'external_id' => $item['id']],
-                    $this->mapLead($item),
-                );
-                $pulled++;
-            }
+        if ($skipped > 0) {
+            logger()->warning("Skipped {$skipped} lead(s) from {$company->name} with no id.");
         }
 
         Lead::whereNull('synced_to_parent_at')

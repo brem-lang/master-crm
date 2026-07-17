@@ -20,32 +20,31 @@ test('a child admin sees leads metrics scoped to only their own company', functi
     $childAdmin = User::factory()->create(['company_id' => $company->id]);
     $childAdmin->assignRole('child-admin');
 
-    $response = $this->actingAs($childAdmin)->get(route('dashboard'));
+    $response = $this->actingAs($childAdmin)->get(route('leads.index'));
 
     $response->assertOk();
-    $metrics = $response->inertiaPage()['props']['leadsMetrics'];
+    $props = $response->inertiaPage()['props'];
 
-    expect($metrics)->not->toBeNull();
-    expect($metrics['total'])->toBe(3);
-    expect($metrics['rejected'])->toBe(2);
-    expect($metrics['ftd'])->toBe(1);
-    expect($metrics['leads']['total'])->toBe(3);
+    expect($props['total'])->toBe(3);
+    expect($props['rejected'])->toBe(2);
+    expect($props['ftd'])->toBe(1);
+    expect($props['leads']['total'])->toBe(3);
+    expect($props)->not->toHaveKey('companies');
 });
 
-test('a sales rep does not see leads metrics', function () {
+test('a sales rep cannot view the leads page', function () {
     $company = Company::factory()->create();
     Lead::factory()->count(3)->create(['company_id' => $company->id]);
 
     $salesRep = User::factory()->create(['company_id' => $company->id]);
     $salesRep->assignRole('sales-rep');
 
-    $response = $this->actingAs($salesRep)->get(route('dashboard'));
+    $response = $this->actingAs($salesRep)->get(route('leads.index'));
 
-    $response->assertOk();
-    expect($response->inertiaPage()['props']['leadsMetrics'])->toBeNull();
+    $response->assertForbidden();
 });
 
-test('a parent admin sees leads metrics across all companies with a company filter list', function () {
+test('a parent admin sees leads across all companies with a company filter list', function () {
     $companyA = Company::factory()->create(['name' => 'Company A']);
     $companyB = Company::factory()->create(['name' => 'Company B']);
 
@@ -55,18 +54,17 @@ test('a parent admin sees leads metrics across all companies with a company filt
     $parentAdmin = User::factory()->create();
     $parentAdmin->assignRole('parent-admin');
 
-    $response = $this->actingAs($parentAdmin)->get(route('dashboard'));
+    $response = $this->actingAs($parentAdmin)->get(route('leads.index'));
 
     $response->assertOk();
-    $metrics = $response->inertiaPage()['props']['leadsMetrics'];
+    $props = $response->inertiaPage()['props'];
 
-    expect($metrics)->not->toBeNull();
-    expect($metrics['total'])->toBe(5);
-    expect($metrics['companies'])->toHaveCount(2);
-    expect($metrics['leads']['data'][0]['company']['name'])->not->toBeNull();
+    expect($props['total'])->toBe(5);
+    expect($props['companies'])->toHaveCount(2);
+    expect($props['leads']['data'][0]['company']['name'])->not->toBeNull();
 });
 
-test('a parent admin can filter the leads dashboard down to one company', function () {
+test('a parent admin can filter the leads page down to one company', function () {
     $companyA = Company::factory()->create();
     $companyB = Company::factory()->create();
 
@@ -76,11 +74,11 @@ test('a parent admin can filter the leads dashboard down to one company', functi
     $parentAdmin = User::factory()->create();
     $parentAdmin->assignRole('parent-admin');
 
-    $response = $this->actingAs($parentAdmin)->get(route('dashboard', ['company_id' => $companyA->id]));
+    $response = $this->actingAs($parentAdmin)->get(route('leads.index', ['company_id' => $companyA->id]));
 
-    $metrics = $response->inertiaPage()['props']['leadsMetrics'];
-    expect($metrics['total'])->toBe(2);
-    expect($metrics['leads']['total'])->toBe(2);
+    $props = $response->inertiaPage()['props'];
+    expect($props['total'])->toBe(2);
+    expect($props['leads']['total'])->toBe(2);
 });
 
 test('search and status filters narrow the leads list', function () {
@@ -92,13 +90,26 @@ test('search and status filters narrow the leads list', function () {
     $childAdmin = User::factory()->create(['company_id' => $company->id]);
     $childAdmin->assignRole('child-admin');
 
-    $response = $this->actingAs($childAdmin)->get(route('dashboard', ['search' => 'Alice']));
-    $leads = $response->inertiaPage()['props']['leadsMetrics']['leads']['data'];
+    $response = $this->actingAs($childAdmin)->get(route('leads.index', ['search' => 'Alice']));
+    $leads = $response->inertiaPage()['props']['leads']['data'];
     expect($leads)->toHaveCount(1);
     expect($leads[0]['first_name'])->toBe('Alice');
 
-    $response = $this->actingAs($childAdmin)->get(route('dashboard', ['status' => 'contacted']));
-    $leads = $response->inertiaPage()['props']['leadsMetrics']['leads']['data'];
+    $response = $this->actingAs($childAdmin)->get(route('leads.index', ['status' => 'contacted']));
+    $leads = $response->inertiaPage()['props']['leads']['data'];
     expect($leads)->toHaveCount(1);
     expect($leads[0]['first_name'])->toBe('Bob');
+});
+
+test('the dashboard no longer shows leads data', function () {
+    $company = Company::factory()->create();
+    Lead::factory()->count(3)->create(['company_id' => $company->id]);
+
+    $childAdmin = User::factory()->create(['company_id' => $company->id]);
+    $childAdmin->assignRole('child-admin');
+
+    $response = $this->actingAs($childAdmin)->get(route('dashboard'));
+
+    $response->assertOk();
+    expect($response->inertiaPage()['props'])->not->toHaveKey('total');
 });
