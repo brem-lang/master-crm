@@ -2,39 +2,18 @@ import { router, usePage } from '@inertiajs/react';
 import { ExternalLink, Search } from 'lucide-react';
 import { useState } from 'react';
 import Heading from '@/components/heading';
+import { RefreshButton } from '@/components/refresh-button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { WebsiteStatusBadge } from '@/components/website-status-badge';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
-import { cn } from '@/lib/utils';
 import { index as directoryIndex } from '@/routes/directory';
 import type { Company } from '@/types';
 
 type Filters = {
     search: string;
 };
-
-function WebsiteStatus({ status }: { status: Company['website_status'] }) {
-    const label =
-        status === 'online'
-            ? 'Online'
-            : status === 'offline'
-              ? 'Offline'
-              : 'Checking…';
-
-    return (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span
-                className={cn('size-2 rounded-full', {
-                    'bg-green-500': status === 'online',
-                    'bg-red-500': status === 'offline',
-                    'bg-muted-foreground/40': !status,
-                })}
-            />
-            {label}
-        </div>
-    );
-}
 
 type PageProps = {
     companies: Company[];
@@ -55,10 +34,13 @@ export default function CompanyDirectory() {
 
     return (
         <div className="space-y-6 p-4">
-            <Heading
-                title="Company Directory"
-                description="Browse companies and visit their websites"
-            />
+            <div className="flex items-center justify-between">
+                <Heading
+                    title="Company Directory"
+                    description="Browse companies and visit their websites"
+                />
+                <RefreshButton />
+            </div>
 
             <div className="relative w-full max-w-xs">
                 <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -85,7 +67,7 @@ export default function CompanyDirectory() {
                                 <div className="space-y-1.5">
                                     <CardTitle>{company.name}</CardTitle>
                                     {company.website ? (
-                                        <WebsiteStatus
+                                        <WebsiteStatusBadge
                                             status={company.website_status}
                                         />
                                     ) : (

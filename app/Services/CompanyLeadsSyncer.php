@@ -50,13 +50,39 @@ class CompanyLeadsSyncer
         // ignore it and do a full re-pull rather than only fetching what's "new" since it.
         $since = $localCount > 0 ? $company->last_synced_since?->toIso8601String() : null;
 
+        // Prefer the company's dedicated, lightweight count endpoint when configured —
+        // it settles "is anything new" without ever paying for a full get-leads call.
+        // Companies that haven't set one up yet fall back to `all_leads_count` off the
+        // first leads page instead (see below).
+        if (filled($company->leads_count_url)) {
+            try {
+                $remoteCount = $this->client->fetchLeadCount($company);
+            } catch (ChildCrmSyncException $e) {
+                return ['success' => false, 'pulled' => 0, 'message' => $e->getMessage()];
+            }
+
+            if ($remoteCount === $localCount) {
+                $company->update(['last_synced_at' => now()]);
+
+                return [
+                    'success' => true,
+                    'pulled' => 0,
+                    'message' => "{$company->name} is already up to date — no new leads.",
+                ];
+            }
+        }
+
         try {
             $first = $this->client->fetchPage($company, 0, self::LIMIT, $since);
         } catch (ChildCrmSyncException $e) {
             return ['success' => false, 'pulled' => 0, 'message' => $e->getMessage()];
         }
 
-        if (array_key_exists('all_leads_count', $first) && $first['all_leads_count'] === $localCount) {
+        if (
+            blank($company->leads_count_url)
+            && array_key_exists('all_leads_count', $first)
+            && $first['all_leads_count'] === $localCount
+        ) {
             $company->update(['last_synced_at' => now()]);
 
             return [
@@ -89,11 +115,17 @@ class CompanyLeadsSyncer
                         continue;
                     }
 
-                    Lead::updateOrCreate(
+                    $lead = Lead::updateOrCreate(
                         ['company_id' => $company->id, 'external_id' => $item['id']],
                         $this->mapLead($item),
                     );
-                    $pulled++;
+
+                    // The child API's `since` filter is inclusive, so the last
+                    // already-known lead from the previous run is re-fetched every
+                    // time — only count genuinely new inserts, not that re-touch.
+                    if ($lead->wasRecentlyCreated) {
+                        $pulled++;
+                    }
                 }
             }
         } catch (ChildCrmSyncException $e) {

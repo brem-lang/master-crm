@@ -4,6 +4,7 @@ import {
     MoreHorizontal,
     Pencil,
     Plus,
+    RotateCcw,
     Search,
     Trash2,
 } from 'lucide-react';
@@ -50,10 +51,18 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { WebsiteStatusBadge } from '@/components/website-status-badge';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { useRowSelection } from '@/hooks/use-row-selection';
+import { relativeTime } from '@/lib/relative-time';
 import { index as companiesIndex } from '@/routes/companies';
 import type { Company, Paginator, User } from '@/types';
+
+function syncBadgeClass(failureStreak: number): string {
+    return failureStreak > 0
+        ? 'border-transparent bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+        : 'border-transparent bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+}
 
 type Filters = {
     search: string;
@@ -215,6 +224,8 @@ export default function CompaniesIndex() {
                                 <TableHead>Name</TableHead>
                                 <TableHead>Slug</TableHead>
                                 <TableHead>Status</TableHead>
+                                <TableHead>Website</TableHead>
+                                <TableHead>Sync</TableHead>
                                 <TableHead>Users</TableHead>
                                 <TableHead className="w-px" />
                             </TableRow>
@@ -262,6 +273,39 @@ export default function CompaniesIndex() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
+                                        {company.website ? (
+                                            <WebsiteStatusBadge
+                                                status={company.website_status}
+                                            />
+                                        ) : (
+                                            <span className="text-xs text-muted-foreground">
+                                                —
+                                            </span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex flex-col gap-1">
+                                            <Badge
+                                                variant="outline"
+                                                className={syncBadgeClass(
+                                                    company.failure_streak ?? 0,
+                                                )}
+                                            >
+                                                {(company.failure_streak ?? 0) >
+                                                0
+                                                    ? `${company.failure_streak} failed in a row`
+                                                    : 'Healthy'}
+                                            </Badge>
+                                            <span className="text-xs text-muted-foreground">
+                                                {company.last_synced_at
+                                                    ? relativeTime(
+                                                          company.last_synced_at,
+                                                      )
+                                                    : 'Never synced'}
+                                            </span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
                                         <Badge
                                             asChild
                                             variant="secondary"
@@ -299,66 +343,136 @@ export default function CompaniesIndex() {
                                                     Edit
                                                 </DropdownMenuItem>
 
-                                                <Dialog>
-                                                    <DialogTrigger asChild>
-                                                        <DropdownMenuItem
-                                                            onSelect={(event) =>
-                                                                event.preventDefault()
-                                                            }
-                                                        >
-                                                            <Download />
-                                                            Pull data
-                                                        </DropdownMenuItem>
-                                                    </DialogTrigger>
-
-                                                    <DialogContent>
-                                                        <DialogTitle>
-                                                            Pull data from{' '}
-                                                            {company.name}?
-                                                        </DialogTitle>
-                                                        <DialogDescription>
-                                                            This will contact{' '}
-                                                            {company.name}
-                                                            &apos;s API to check
-                                                            for new data. It
-                                                            won&apos;t change
-                                                            anything in this
-                                                            CRM.
-                                                        </DialogDescription>
-
-                                                        <DialogFooter className="gap-2">
-                                                            <DialogClose
-                                                                asChild
+                                                {company.is_active && (
+                                                    <Dialog>
+                                                        <DialogTrigger asChild>
+                                                            <DropdownMenuItem
+                                                                onSelect={(
+                                                                    event,
+                                                                ) =>
+                                                                    event.preventDefault()
+                                                                }
                                                             >
-                                                                <Button variant="secondary">
-                                                                    Cancel
-                                                                </Button>
-                                                            </DialogClose>
+                                                                <Download />
+                                                                Pull data
+                                                            </DropdownMenuItem>
+                                                        </DialogTrigger>
 
-                                                            <DialogClose
-                                                                asChild
-                                                            >
-                                                                <Button
-                                                                    onClick={() =>
-                                                                        router.post(
-                                                                            CompanyController.pullData(
-                                                                                company.id,
-                                                                            )
-                                                                                .url,
-                                                                            {},
-                                                                            {
-                                                                                preserveScroll: true,
-                                                                            },
-                                                                        )
-                                                                    }
+                                                        <DialogContent>
+                                                            <DialogTitle>
+                                                                Pull data from{' '}
+                                                                {company.name}?
+                                                            </DialogTitle>
+                                                            <DialogDescription>
+                                                                This will
+                                                                contact{' '}
+                                                                {company.name}
+                                                                &apos;s API to
+                                                                check for new
+                                                                data. It
+                                                                won&apos;t
+                                                                change anything
+                                                                in this CRM.
+                                                            </DialogDescription>
+
+                                                            <DialogFooter className="gap-2">
+                                                                <DialogClose
+                                                                    asChild
                                                                 >
-                                                                    <Download />
-                                                                    Pull data
-                                                                </Button>
-                                                            </DialogClose>
-                                                        </DialogFooter>
-                                                    </DialogContent>
-                                                </Dialog>
+                                                                    <Button variant="secondary">
+                                                                        Cancel
+                                                                    </Button>
+                                                                </DialogClose>
+
+                                                                <DialogClose
+                                                                    asChild
+                                                                >
+                                                                    <Button
+                                                                        onClick={() =>
+                                                                            router.post(
+                                                                                CompanyController.pullData(
+                                                                                    company.id,
+                                                                                )
+                                                                                    .url,
+                                                                                {},
+                                                                                {
+                                                                                    preserveScroll: true,
+                                                                                },
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Download />
+                                                                        Pull
+                                                                        data
+                                                                    </Button>
+                                                                </DialogClose>
+                                                            </DialogFooter>
+                                                        </DialogContent>
+                                                    </Dialog>
+                                                )}
+
+                                                {!company.is_active && (
+                                                    <Dialog>
+                                                        <DialogTrigger asChild>
+                                                            <DropdownMenuItem
+                                                                onSelect={(
+                                                                    event,
+                                                                ) =>
+                                                                    event.preventDefault()
+                                                                }
+                                                            >
+                                                                <RotateCcw />
+                                                                Reactivate
+                                                            </DropdownMenuItem>
+                                                        </DialogTrigger>
+
+                                                        <DialogContent>
+                                                            <DialogTitle>
+                                                                Reactivate{' '}
+                                                                {company.name}?
+                                                            </DialogTitle>
+                                                            <DialogDescription>
+                                                                Users assigned
+                                                                to this company
+                                                                will regain
+                                                                access to their
+                                                                dashboard and
+                                                                leads
+                                                                immediately.
+                                                            </DialogDescription>
+
+                                                            <DialogFooter className="gap-2">
+                                                                <DialogClose
+                                                                    asChild
+                                                                >
+                                                                    <Button variant="secondary">
+                                                                        Cancel
+                                                                    </Button>
+                                                                </DialogClose>
+
+                                                                <Form
+                                                                    {...CompanyController.reactivate.form(
+                                                                        company.id,
+                                                                    )}
+                                                                >
+                                                                    {({
+                                                                        processing,
+                                                                    }) => (
+                                                                        <Button
+                                                                            disabled={
+                                                                                processing
+                                                                            }
+                                                                            type="submit"
+                                                                        >
+                                                                            <RotateCcw />
+                                                                            Reactivate
+                                                                        </Button>
+                                                                    )}
+                                                                </Form>
+                                                            </DialogFooter>
+                                                        </DialogContent>
+                                                    </Dialog>
+                                                )}
 
                                                 <Dialog>
                                                     <DialogTrigger asChild>

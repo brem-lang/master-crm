@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Support\ChildCrmSyncException;
 use App\Support\SafeUrl;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 
 class ChildCrmLeadsClient
@@ -23,10 +24,6 @@ class ChildCrmLeadsClient
      */
     public function fetchPage(Company $company, int $page, int $limit = 100, ?string $since = null): array
     {
-        if (! SafeUrl::isSafe($company->api_url)) {
-            throw new ChildCrmSyncException("The API address for {$company->name} looks unsafe or invalid, so we didn't contact it.");
-        }
-
         // api_url is the complete, ready-to-call leads endpoint (may already carry its
         // own query string, e.g. `?includeRejected=1`) — merge rather than replace it.
         $urlParts = parse_url($company->api_url);
@@ -35,7 +32,53 @@ class ChildCrmLeadsClient
             [...$existingQuery, 'page' => $page, 'limit' => $limit, 'since' => $since],
             fn ($value) => $value !== null,
         );
-        $baseUrl = strtok($company->api_url, '?');
+
+        $response = $this->request($company, strtok($company->api_url, '?'), $query);
+        $body = $response->json();
+
+        if (! is_array($body)) {
+            throw new ChildCrmSyncException("{$company->name}'s API returned an unreadable response.");
+        }
+
+        return $body;
+    }
+
+    /**
+     * Fetch the authoritative total lead count from the company's dedicated,
+     * lightweight count endpoint — kept separate from `fetchPage()` so checking
+     * "is there anything new" never has to pay for a full leads-listing call.
+     *
+     * @throws ChildCrmSyncException
+     */
+    public function fetchLeadCount(Company $company): int
+    {
+        if (blank($company->leads_count_url)) {
+            throw new ChildCrmSyncException("No leads-count API URL is configured for {$company->name}.");
+        }
+
+        $response = $this->request($company, $company->leads_count_url);
+        $body = $response->json();
+
+        if (! is_array($body) || ! array_key_exists('total_leads', $body)) {
+            throw new ChildCrmSyncException("{$company->name}'s leads-count API returned an unreadable response.");
+        }
+
+        return (int) $body['total_leads'];
+    }
+
+    /**
+     * SSRF-guarded, timeout-bounded GET against one of the company's child-CRM
+     * endpoints, authenticated with its api_key.
+     *
+     * @param  array<string, mixed>  $query
+     *
+     * @throws ChildCrmSyncException
+     */
+    private function request(Company $company, string $url, array $query = []): Response
+    {
+        if (! SafeUrl::isSafe($url)) {
+            throw new ChildCrmSyncException("The API address for {$company->name} looks unsafe or invalid, so we didn't contact it.");
+        }
 
         try {
             $response = Http::withHeaders([
@@ -45,7 +88,7 @@ class ChildCrmLeadsClient
                 ->connectTimeout(self::CONNECT_TIMEOUT_SECONDS)
                 ->timeout(self::REQUEST_TIMEOUT_SECONDS)
                 ->withOptions(['allow_redirects' => false])
-                ->get($baseUrl, $query);
+                ->get($url, $query);
         } catch (ConnectionException) {
             throw new ChildCrmSyncException("Could not reach {$company->name}'s API. Check the API URL and try again.");
         }
@@ -54,13 +97,7 @@ class ChildCrmLeadsClient
             throw new ChildCrmSyncException($this->describeStatus($company, $response->status()));
         }
 
-        $body = $response->json();
-
-        if (! is_array($body)) {
-            throw new ChildCrmSyncException("{$company->name}'s API returned an unreadable response.");
-        }
-
-        return $body;
+        return $response;
     }
 
     /**

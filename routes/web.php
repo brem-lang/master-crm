@@ -15,3 +15,7 @@ require __DIR__.'/roles.php';
 require __DIR__.'/companies.php';
 require __DIR__.'/directory.php';
 require __DIR__.'/leads.php';
+require __DIR__.'/jobs.php';
+require __DIR__.'/audit-log.php';
+require __DIR__.'/notifications.php';
+require __DIR__.'/search.php';

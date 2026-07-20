@@ -33,6 +33,7 @@ class UserStoreRequest extends FormRequest
             'password' => $this->passwordRules(),
             'role' => ['required', Rule::in($assignableRoles)],
             'company_id' => ['nullable', 'integer', Rule::exists(Company::class, 'id')],
+            'is_active' => ['sometimes', 'boolean'],
         ];
     }
 }

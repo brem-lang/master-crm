@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\RoleStoreRequest;
 use App\Http\Requests\Admin\RoleUpdateRequest;
+use App\Models\AuditLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -49,6 +50,8 @@ class RoleController extends Controller
         $role = Role::create(['name' => $request->validated('name')]);
         $role->syncPermissions($request->validated('permissions') ?? []);
 
+        AuditLog::record('role.created', $role, ['permissions' => $role->permissions()->pluck('name')->all()]);
+
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Role created.')]);
 
         return to_route('roles.index');
@@ -58,12 +61,23 @@ class RoleController extends Controller
     {
         $this->authorize('update', $role);
 
+        $previousPermissions = $role->permissions()->pluck('name');
+
         if (! in_array($role->name, self::BUILT_IN_ROLES, true)) {
             $role->name = $request->validated('name');
             $role->save();
         }
 
         $role->syncPermissions($request->validated('permissions') ?? []);
+
+        $newPermissions = $role->permissions()->pluck('name');
+
+        if ($newPermissions->diff($previousPermissions)->isNotEmpty() || $previousPermissions->diff($newPermissions)->isNotEmpty()) {
+            AuditLog::record('role.updated', $role, [
+                'from' => $previousPermissions->all(),
+                'to' => $newPermissions->all(),
+            ]);
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Role updated.')]);
 
@@ -73,6 +87,8 @@ class RoleController extends Controller
     public function destroy(Role $role): RedirectResponse
     {
         $this->authorize('delete', $role);
+
+        AuditLog::record('role.deleted', $role);
 
         $role->delete();
 

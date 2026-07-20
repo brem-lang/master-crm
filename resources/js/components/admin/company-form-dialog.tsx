@@ -109,6 +109,22 @@ export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
                                 <InputError message={errors.api_key} />
                             </div>
 
+                            <div className="grid gap-2">
+                                <Label htmlFor="leads_count_url">
+                                    Leads Count API URL
+                                </Label>
+                                <Input
+                                    id="leads_count_url"
+                                    name="leads_count_url"
+                                    type="url"
+                                    defaultValue={
+                                        company?.leads_count_url ?? ''
+                                    }
+                                    placeholder="https://child-crm.example.com/api/leads-count"
+                                />
+                                <InputError message={errors.leads_count_url} />
+                            </div>
+
                             <div className="flex items-center gap-2">
                                 <Checkbox
                                     id="is_active"

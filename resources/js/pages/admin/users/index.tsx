@@ -76,10 +76,11 @@ type PageProps = {
     companies: Company[];
     filters: Filters;
     stats: Stats;
+    viewUser: User | null;
 };
 
 export default function UsersIndex() {
-    const { auth, users, roles, companies, filters, stats } =
+    const { auth, users, roles, companies, filters, stats, viewUser } =
         usePage<PageProps>().props;
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [createOpen, setCreateOpen] = useState(false);
@@ -98,6 +99,17 @@ export default function UsersIndex() {
                 ...next,
                 per_page: users.per_page,
                 page: 1,
+            },
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
+    };
+
+    const closeViewUser = () => {
+        router.get(
+            usersIndex().url,
+            {
+                ...filters,
+                per_page: users.per_page,
             },
             { preserveState: true, preserveScroll: true, replace: true },
         );
@@ -239,6 +251,7 @@ export default function UsersIndex() {
                                 <TableHead>Name</TableHead>
                                 <TableHead>Email</TableHead>
                                 <TableHead>Role</TableHead>
+                                <TableHead>Status</TableHead>
                                 {isParentAdmin && (
                                     <TableHead>Company</TableHead>
                                 )}
@@ -299,6 +312,20 @@ export default function UsersIndex() {
                                                     {roleLabel(role.name)}
                                                 </Badge>
                                             ))}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge
+                                                variant="outline"
+                                                className={
+                                                    (user.is_active ?? true)
+                                                        ? 'border-transparent bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                                        : 'border-transparent bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                                                }
+                                            >
+                                                {(user.is_active ?? true)
+                                                    ? 'Active'
+                                                    : 'Inactive'}
+                                            </Badge>
                                         </TableCell>
                                         {isParentAdmin && (
                                             <TableCell>
@@ -431,12 +458,20 @@ export default function UsersIndex() {
             />
 
             <UserFormDialog
-                key={editingUser?.id}
-                open={!!editingUser}
-                onOpenChange={(open) => !open && setEditingUser(null)}
+                key={editingUser?.id ?? viewUser?.id}
+                open={!!editingUser || !!viewUser}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setEditingUser(null);
+
+                        if (viewUser) {
+                            closeViewUser();
+                        }
+                    }
+                }}
                 roles={roles}
                 companies={companies}
-                user={editingUser}
+                user={editingUser ?? viewUser}
             />
         </>
     );

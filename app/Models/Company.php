@@ -17,6 +17,7 @@ use Illuminate\Support\Str;
  * @property string|null $website
  * @property string $api_url
  * @property string $api_key
+ * @property string|null $leads_count_url
  * @property bool $is_active
  * @property Carbon|null $last_synced_at
  * @property Carbon|null $last_synced_since
@@ -25,7 +26,7 @@ use Illuminate\Support\Str;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'slug', 'website', 'api_url', 'api_key', 'is_active', 'last_synced_at', 'last_synced_since', 'last_synced_cursor'])]
+#[Fillable(['name', 'slug', 'website', 'api_url', 'api_key', 'leads_count_url', 'is_active', 'last_synced_at', 'last_synced_since', 'last_synced_cursor'])]
 class Company extends Model
 {
     /** @use HasFactory<CompanyFactory> */

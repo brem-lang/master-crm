@@ -3,6 +3,7 @@ import { Eye, Search } from 'lucide-react';
 import { useState } from 'react';
 import { DataPagination } from '@/components/data-pagination';
 import Heading from '@/components/heading';
+import { RefreshButton } from '@/components/refresh-button';
 import { StatCard } from '@/components/stat-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,21 @@ import {
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { index as leadsIndex } from '@/routes/leads';
 import type { Company, Lead, Paginator } from '@/types';
+
+function statusBadgeClass(status: string): string {
+    switch (status.toLowerCase()) {
+        case 'rejected':
+            return 'border-transparent bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+        case 'converted':
+            return 'border-transparent bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+        case 'contacted':
+            return 'border-transparent bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+        case 'new':
+            return 'border-transparent bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400';
+        default:
+            return 'border-transparent bg-muted text-muted-foreground';
+    }
+}
 
 function metaLabel(key: string): string {
     return key
@@ -96,7 +112,12 @@ function LeadDetailsDialog({
                     </DialogTitle>
                     <DialogDescription>
                         {lead.status ? (
-                            <Badge variant="outline">{lead.status}</Badge>
+                            <Badge
+                                variant="outline"
+                                className={statusBadgeClass(lead.status)}
+                            >
+                                {lead.status}
+                            </Badge>
                         ) : null}
                     </DialogDescription>
                 </DialogHeader>
@@ -147,6 +168,7 @@ type PageProps = {
     byStatus: Record<string, number>;
     leads: Paginator<Lead>;
     companies?: Pick<Company, 'id' | 'name'>[];
+    viewLead: Lead | null;
     filters: {
         search: string;
         status: string | null;
@@ -155,8 +177,16 @@ type PageProps = {
 };
 
 export default function LeadsIndex() {
-    const { total, rejected, ftd, byStatus, leads, companies, filters } =
-        usePage<PageProps>().props;
+    const {
+        total,
+        rejected,
+        ftd,
+        byStatus,
+        leads,
+        companies,
+        viewLead,
+        filters,
+    } = usePage<PageProps>().props;
     const [search, setSearch] = useState(filters.search);
     const [viewingLead, setViewingLead] = useState<Lead | null>(null);
 
@@ -173,6 +203,17 @@ export default function LeadsIndex() {
         );
     };
 
+    const closeViewLead = () => {
+        router.get(
+            leadsIndex().url,
+            {
+                ...filters,
+                per_page: leads.per_page,
+            },
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
+    };
+
     const debouncedSearch = useDebouncedCallback((value: string) => {
         applyFilters({ search: value });
     }, 300);
@@ -182,14 +223,17 @@ export default function LeadsIndex() {
             <Head title="Leads" />
 
             <div className="space-y-6 p-4">
-                <Heading
-                    title="Leads"
-                    description={
-                        companies
-                            ? "Leads pulled from all companies' CRMs"
-                            : "Leads pulled from your company's CRM"
-                    }
-                />
+                <div className="flex items-center justify-between">
+                    <Heading
+                        title="Leads"
+                        description={
+                            companies
+                                ? "Leads pulled from all companies' CRMs"
+                                : "Leads pulled from your company's CRM"
+                        }
+                    />
+                    <RefreshButton />
+                </div>
 
                 <div className="grid gap-4 sm:grid-cols-3">
                     <StatCard label="Total leads" value={total} />
@@ -321,12 +365,17 @@ export default function LeadsIndex() {
                                             {lead.company?.name ?? '—'}
                                         </TableCell>
                                     )}
-                                    <TableCell className="hidden sm:table-cell">
+                                    <TableCell className="hidden font-semibold sm:table-cell">
                                         {lead.email ?? '—'}
                                     </TableCell>
                                     <TableCell>
                                         {lead.status ? (
-                                            <Badge variant="outline">
+                                            <Badge
+                                                variant="outline"
+                                                className={statusBadgeClass(
+                                                    lead.status,
+                                                )}
+                                            >
                                                 {lead.status}
                                             </Badge>
                                         ) : (
@@ -365,9 +414,17 @@ export default function LeadsIndex() {
                 <DataPagination paginator={leads} filters={filters} />
 
                 <LeadDetailsDialog
-                    lead={viewingLead}
-                    open={!!viewingLead}
-                    onOpenChange={(open) => !open && setViewingLead(null)}
+                    lead={viewingLead ?? viewLead}
+                    open={!!viewingLead || !!viewLead}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setViewingLead(null);
+
+                            if (viewLead) {
+                                closeViewLead();
+                            }
+                        }
+                    }}
                 />
             </div>
         </>

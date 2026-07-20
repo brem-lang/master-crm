@@ -1,6 +1,8 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     Building2,
+    ClipboardList,
+    ListChecks,
     Globe,
     LayoutGrid,
     Settings,
@@ -22,8 +24,10 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as auditLogIndex } from '@/routes/audit-log';
 import { index as companiesIndex } from '@/routes/companies';
 import { index as directoryIndex } from '@/routes/directory';
+import { index as jobsIndex } from '@/routes/jobs';
 import { index as leadsIndex } from '@/routes/leads';
 import { index as rolesIndex } from '@/routes/roles';
 import { index as usersIndex } from '@/routes/users';
@@ -88,6 +92,16 @@ export function AppSidebar() {
                       title: 'Directory',
                       href: directoryIndex(),
                       icon: Globe,
+                  },
+                  {
+                      title: 'Jobs',
+                      href: jobsIndex(),
+                      icon: ListChecks,
+                  },
+                  {
+                      title: 'Activity Log',
+                      href: auditLogIndex(),
+                      icon: ClipboardList,
                   },
               ]
             : []),

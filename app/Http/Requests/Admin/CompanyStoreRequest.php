@@ -23,6 +23,7 @@ class CompanyStoreRequest extends FormRequest
             'website' => ['nullable', 'string', 'max:255', 'url'],
             'api_url' => ['required', 'string', 'max:255', 'url'],
             'api_key' => ['required', 'string', 'max:255', 'unique:'.Company::class.',api_key'],
+            'leads_count_url' => ['nullable', 'string', 'max:255', 'url'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

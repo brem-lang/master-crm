@@ -45,6 +45,9 @@ class HandleInertiaRequests extends Middleware
                 'impersonating' => app(ImpersonateManager::class)->isImpersonating(),
                 'company' => $request->user()?->company,
             ],
+            'notifications' => [
+                'unread_count' => $request->user()?->unreadNotifications()->count() ?? 0,
+            ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }

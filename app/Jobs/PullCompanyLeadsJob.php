@@ -3,12 +3,14 @@
 namespace App\Jobs;
 
 use App\Models\Company;
+use App\Models\JobRun;
 use App\Services\CompanyLeadsSyncer;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use RuntimeException;
 
-class PullCompanyLeadsJob implements ShouldQueue
+class PullCompanyLeadsJob implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
@@ -20,7 +22,24 @@ class PullCompanyLeadsJob implements ShouldQueue
      */
     public int $timeout = 300;
 
+    /**
+     * How long the uniqueness lock is held, in seconds. Kept a bit above
+     * $timeout so a legitimately-still-running sync never has its lock
+     * expire and let a duplicate slip in behind it.
+     */
+    public int $uniqueFor = 360;
+
     public function __construct(public readonly Company $company) {}
+
+    /**
+     * One company's pull can never overlap itself — a second scheduler tick
+     * (or a second queue worker) dispatching for the same company while an
+     * earlier pull is still queued/running is dropped, not duplicated.
+     */
+    public function uniqueId(): string
+    {
+        return (string) $this->company->id;
+    }
 
     /**
      * @return list<int>
@@ -32,9 +51,24 @@ class PullCompanyLeadsJob implements ShouldQueue
 
     public function handle(CompanyLeadsSyncer $syncer): void
     {
+        if (! $this->company->is_active) {
+            logger("Skipping lead sync for inactive company #{$this->company->id}.");
+
+            return;
+        }
+
         $result = $syncer->sync($this->company);
 
         logger($result);
+
+        JobRun::create([
+            'company_id' => $this->company->id,
+            'triggered_by' => 'scheduled',
+            'success' => $result['success'],
+            'pulled' => $result['pulled'],
+            'message' => $result['message'],
+            'attempt' => $this->attempts(),
+        ]);
 
         if (! $result['success']) {
             // CompanyLeadsSyncer never throws — it always returns a result array so the

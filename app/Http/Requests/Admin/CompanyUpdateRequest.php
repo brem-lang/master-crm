@@ -34,6 +34,7 @@ class CompanyUpdateRequest extends FormRequest
                 'max:255',
                 Rule::unique(Company::class, 'api_key')->ignore($this->route('company')?->id),
             ],
+            'leads_count_url' => ['nullable', 'string', 'max:255', 'url'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

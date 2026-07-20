@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\CompanyUserStoreRequest;
+use App\Models\AuditLog;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -29,6 +30,8 @@ class CompanyUserController extends Controller
 
         $user->assignRole($request->validated('role'));
 
+        AuditLog::record('user.created', $user, ['company_id' => $company->id]);
+
         Inertia::flash('toast', ['type' => 'success', 'message' => __('User added to company.')]);
 
         return back();
@@ -43,6 +46,8 @@ class CompanyUserController extends Controller
 
         $user->company_id = null;
         $user->save();
+
+        AuditLog::record('user.removed_from_company', $user, ['company_id' => $company->id]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('User removed from company.')]);
 

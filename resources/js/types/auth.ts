@@ -17,8 +17,11 @@ export type Company = {
     website_status?: 'online' | 'offline' | null;
     api_url?: string;
     api_key?: string;
+    leads_count_url?: string | null;
     is_active?: boolean;
     users_count?: number;
+    last_synced_at?: string | null;
+    failure_streak?: number;
 };
 
 export type User = {
@@ -31,6 +34,7 @@ export type User = {
     roles?: Role[];
     company_id?: number | null;
     company?: Company | null;
+    is_active?: boolean;
     created_at: string;
     updated_at: string;
     [key: string]: unknown;
@@ -56,11 +60,64 @@ export type Lead = {
     company?: Pick<Company, 'id' | 'name'> | null;
 };
 
+export type JobRun = {
+    id: number;
+    company_id: number;
+    triggered_by: 'manual' | 'scheduled';
+    success: boolean;
+    pulled: number;
+    message: string;
+    attempt: number | null;
+    created_at: string;
+    company?: Pick<Company, 'id' | 'name'> | null;
+};
+
+export type AuditLog = {
+    id: number;
+    actor: Pick<User, 'id' | 'name' | 'email'> | null;
+    ip_address: string | null;
+    action: string;
+    subject_type: string | null;
+    subject_id: number | null;
+    changes: Record<string, unknown> | null;
+    created_at: string;
+};
+
 export type Auth = {
     user: User;
     permissions?: string[];
     impersonating?: boolean;
     company?: Company | null;
+};
+
+export type GlobalSearchResults = {
+    companies: Pick<Company, 'id' | 'name' | 'slug'>[];
+    users: (Pick<User, 'id' | 'name' | 'email'> & {
+        company: Pick<Company, 'id' | 'name'> | null;
+    })[];
+    leads: {
+        id: number;
+        first_name: string | null;
+        last_name: string | null;
+        email: string | null;
+        company_id: number;
+        company: Pick<Company, 'id' | 'name'> | null;
+    }[];
+};
+
+export type JobRunNotification = {
+    id: string;
+    read_at: string | null;
+    created_at: string;
+    data: {
+        job_run_id: number;
+        company_id: number;
+        company_name: string | null;
+        success: boolean;
+        pulled: number;
+        message: string;
+        triggered_by: 'manual' | 'scheduled';
+    };
 };
 
 /* @chisel-passkeys */

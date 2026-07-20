@@ -4,6 +4,7 @@ import { useState } from 'react';
 import UserController from '@/actions/App/Http/Controllers/Admin/UserController';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -222,6 +223,22 @@ export function UserFormDialog({
                                         />
                                     </div>
                                 )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <Checkbox
+                                    id="is_active"
+                                    name="is_active"
+                                    value="1"
+                                    defaultChecked={user?.is_active ?? true}
+                                />
+                                <Label
+                                    htmlFor="is_active"
+                                    className="font-normal"
+                                >
+                                    Active
+                                </Label>
+                                <InputError message={errors.is_active} />
                             </div>
 
                             <DialogFooter>

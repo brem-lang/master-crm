@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Models\Company;
+use App\Models\JobRun;
+use App\Observers\JobRunObserver;
 use App\Policies\CompanyPolicy;
 use App\Policies\RolePolicy;
 use Carbon\CarbonImmutable;
@@ -32,6 +34,8 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::policy(Role::class, RolePolicy::class);
         Gate::policy(Company::class, CompanyPolicy::class);
+
+        JobRun::observe(JobRunObserver::class);
     }
 
     /**

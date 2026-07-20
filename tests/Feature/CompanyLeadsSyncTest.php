@@ -117,6 +117,160 @@ test('re-pulling when all_leads_count matches the local count makes exactly one 
     expect(Lead::where('company_id', $company->id)->count())->toBe(2);
 });
 
+test('when leads_count_url is set and matches the local count, get-leads is never called', function () {
+    $company = Company::factory()->create([
+        'api_url' => 'https://example.com/functions/v1/get-leads',
+        'leads_count_url' => 'https://example.com/functions/v1/leads-count',
+    ]);
+    Lead::factory()->count(2)->create(['company_id' => $company->id, 'synced_to_parent_at' => now()]);
+
+    Http::fake([
+        'https://example.com/functions/v1/leads-count*' => Http::response([
+            'success' => true,
+            'total_leads' => 2,
+        ]),
+    ]);
+
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $response = $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
+
+    $response->assertRedirect(route('companies.index'));
+    $response->assertInertiaFlash('toast.type', 'success');
+
+    // Only the lightweight count endpoint was hit — get-leads was never called.
+    Http::assertSentCount(1);
+    Http::assertSent(fn ($request) => str_contains($request->url(), 'leads-count'));
+    expect(Lead::where('company_id', $company->id)->count())->toBe(2);
+});
+
+test('when leads_count_url is set and differs, a full pull happens using get-leads', function () {
+    $company = Company::factory()->create([
+        'api_url' => 'https://example.com/functions/v1/get-leads',
+        'leads_count_url' => 'https://example.com/functions/v1/leads-count',
+    ]);
+    Lead::factory()->count(1)->create(['company_id' => $company->id, 'synced_to_parent_at' => now()]);
+
+    Http::fake([
+        'https://example.com/functions/v1/leads-count*' => Http::response([
+            'success' => true,
+            'total_leads' => 2,
+        ]),
+        'https://example.com/functions/v1/get-leads*' => Http::response([
+            'success' => true,
+            'total' => 2,
+            'all_leads_count' => 2,
+            'page' => 0,
+            'pages' => 1,
+            'next_cursor' => 'id-1',
+            'next_since' => '2026-07-01T00:00:00Z',
+            'data' => [leadPayload('id-1', '2026-07-01T00:00:00Z')],
+        ]),
+    ]);
+
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $response = $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
+
+    $response->assertRedirect(route('companies.index'));
+    $response->assertInertiaFlash('toast.type', 'success');
+
+    Http::assertSentCount(2);
+});
+
+test('an inclusive since boundary re-fetching an already-known lead is not miscounted as new', function () {
+    $company = Company::factory()->create([
+        'api_url' => 'https://example.com/functions/v1/get-leads',
+        'last_synced_since' => now()->subDay(),
+    ]);
+    Lead::factory()->create([
+        'company_id' => $company->id,
+        'external_id' => 'id-existing',
+        'synced_to_parent_at' => now(),
+    ]);
+
+    Http::fake([
+        // The child API's `since` filter is inclusive, so it re-returns the
+        // already-known boundary lead alongside one genuinely new lead.
+        'https://example.com/functions/v1/get-leads*' => Http::response([
+            'success' => true,
+            'total' => 2,
+            'all_leads_count' => 2,
+            'page' => 0,
+            'pages' => 1,
+            'next_cursor' => 'id-new',
+            'next_since' => '2026-07-02T00:00:00Z',
+            'data' => [
+                leadPayload('id-existing', '2026-07-01T00:00:00Z'),
+                leadPayload('id-new', '2026-07-02T00:00:00Z'),
+            ],
+        ]),
+    ]);
+
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $response = $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
+
+    $response->assertRedirect(route('companies.index'));
+    $response->assertInertiaFlash('toast.type', 'success');
+    $response->assertInertiaFlash('toast.message', "Pulled 1 new lead from {$company->name}.");
+
+    // Only 1 lead was genuinely new — the re-touched boundary lead must not be counted.
+    expect(Lead::where('company_id', $company->id)->count())->toBe(2);
+});
+
+test('a leads_count_url failure produces a friendly error and never calls get-leads', function () {
+    $company = Company::factory()->create([
+        'api_url' => 'https://example.com/functions/v1/get-leads',
+        'leads_count_url' => 'https://example.com/functions/v1/leads-count',
+    ]);
+
+    Http::fake([
+        'https://example.com/functions/v1/leads-count*' => Http::response(null, 500),
+    ]);
+
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $response = $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
+
+    $response->assertRedirect(route('companies.index'));
+    $response->assertInertiaFlash('toast.type', 'error');
+    Http::assertSentCount(1);
+});
+
+test('without leads_count_url, the old all_leads_count fallback still works', function () {
+    $company = Company::factory()->create([
+        'api_url' => 'https://example.com/functions/v1/get-leads',
+        'leads_count_url' => null,
+    ]);
+    Lead::factory()->count(2)->create(['company_id' => $company->id, 'synced_to_parent_at' => now()]);
+
+    Http::fake([
+        'https://example.com/functions/v1/get-leads*' => Http::response([
+            'success' => true,
+            'total' => 2,
+            'all_leads_count' => 2,
+            'page' => 0,
+            'pages' => 1,
+            'next_cursor' => null,
+            'next_since' => null,
+            'data' => [],
+        ]),
+    ]);
+
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $response = $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
+
+    $response->assertInertiaFlash('toast.type', 'success');
+    Http::assertSentCount(1);
+});
+
 test('a stale cursor is ignored and a full re-pull happens when local leads were deleted', function () {
     $company = Company::factory()->create([
         'api_url' => 'https://example.com/functions/v1/get-leads',

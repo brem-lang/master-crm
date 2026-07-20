@@ -5,17 +5,22 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\CompanyStoreRequest;
 use App\Http\Requests\Admin\CompanyUpdateRequest;
+use App\Models\AuditLog;
 use App\Models\Company;
+use App\Models\JobRun;
 use App\Models\User;
 use App\Services\CompanyLeadsSyncer;
+use App\Services\WebsiteHealthChecker;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class CompanyController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, WebsiteHealthChecker $healthChecker): Response
     {
         $this->authorize('viewAny', Company::class);
 
@@ -29,6 +34,19 @@ class CompanyController extends Controller
             sum(case when is_active = 0 then 1 else 0 end) as inactive
         ')->first();
 
+        $companies = Company::withCount('users')
+            ->when($search !== '', fn ($query) => $query->where(function ($query) use ($search) {
+                $query->where('name', 'like', "%{$search}%")
+                    ->orWhere('slug', 'like', "%{$search}%");
+            }))
+            ->when($status === 'active', fn ($query) => $query->where('is_active', true))
+            ->when($status === 'inactive', fn ($query) => $query->where('is_active', false))
+            ->latest()
+            ->paginate($this->perPage($request))
+            ->withQueryString();
+
+        $this->attachHealth($companies->getCollection(), $healthChecker);
+
         return Inertia::render('admin/companies/index', [
             'stats' => [
                 'total' => (int) $stats->total,
@@ -39,16 +57,7 @@ class CompanyController extends Controller
             'companyUsers' => $viewCompanyId
                 ? User::where('company_id', $viewCompanyId)->with('roles')->orderBy('name')->get()
                 : null,
-            'companies' => Company::withCount('users')
-                ->when($search !== '', fn ($query) => $query->where(function ($query) use ($search) {
-                    $query->where('name', 'like', "%{$search}%")
-                        ->orWhere('slug', 'like', "%{$search}%");
-                }))
-                ->when($status === 'active', fn ($query) => $query->where('is_active', true))
-                ->when($status === 'inactive', fn ($query) => $query->where('is_active', false))
-                ->latest()
-                ->paginate($this->perPage($request))
-                ->withQueryString(),
+            'companies' => $companies,
             'filters' => [
                 'search' => $search,
                 'status' => $status,
@@ -56,15 +65,57 @@ class CompanyController extends Controller
         ]);
     }
 
+    /**
+     * Attach website reachability and sync failure-streak data to each company.
+     *
+     * @param  Collection<int, Company>  $companies
+     */
+    private function attachHealth(Collection $companies, WebsiteHealthChecker $healthChecker): void
+    {
+        $statuses = $healthChecker->statusFor($companies);
+
+        $runsByCompany = JobRun::whereIn('company_id', $companies->pluck('id'))
+            ->orderByDesc('created_at')
+            ->get(['company_id', 'success', 'created_at'])
+            ->groupBy('company_id');
+
+        $companies->each(function (Company $company) use ($statuses, $runsByCompany) {
+            $company->setAttribute('website_status', $statuses[$company->id] ?? null);
+            $company->setAttribute('failure_streak', $this->failureStreak($runsByCompany->get($company->id, collect())));
+        });
+    }
+
+    /**
+     * Count consecutive failed runs, newest first, until the first success.
+     *
+     * @param  Collection<int, JobRun>  $runs
+     */
+    private function failureStreak(Collection $runs): int
+    {
+        $streak = 0;
+
+        foreach ($runs as $run) {
+            if ($run->success) {
+                break;
+            }
+
+            $streak++;
+        }
+
+        return $streak;
+    }
+
     public function store(CompanyStoreRequest $request): RedirectResponse
     {
         $this->authorize('create', Company::class);
 
-        Company::create([
+        $company = Company::create([
             ...$request->validated(),
             'slug' => Company::generateUniqueSlug($request->validated('name')),
             'is_active' => $request->boolean('is_active'),
         ]);
+
+        AuditLog::record('company.created', $company);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Company created.')]);
 
@@ -80,6 +131,8 @@ class CompanyController extends Controller
             'is_active' => $request->boolean('is_active'),
         ]);
 
+        $this->recordCompanyUpdate($company);
+
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Company updated.')]);
 
         return to_route('companies.index');
@@ -89,6 +142,8 @@ class CompanyController extends Controller
     {
         $this->authorize('delete', $company);
 
+        AuditLog::record('company.deleted', $company);
+
         $company->delete();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Company deleted.')]);
@@ -96,11 +151,53 @@ class CompanyController extends Controller
         return to_route('companies.index');
     }
 
+    public function reactivate(Company $company): RedirectResponse
+    {
+        $this->authorize('update', $company);
+
+        $company->update(['is_active' => true]);
+
+        AuditLog::record('company.activated', $company);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Company reactivated.')]);
+
+        return to_route('companies.index');
+    }
+
+    /**
+     * Log a company update as an activation/deactivation when that's what changed,
+     * otherwise a generic update with a redacted diff (never the raw api_key value).
+     */
+    private function recordCompanyUpdate(Company $company): void
+    {
+        if ($company->wasChanged('is_active')) {
+            AuditLog::record($company->is_active ? 'company.activated' : 'company.deactivated', $company);
+
+            return;
+        }
+
+        AuditLog::record('company.updated', $company, Arr::except($company->getChanges(), ['api_key', 'updated_at']));
+    }
+
     public function pullData(Company $company, CompanyLeadsSyncer $syncer): RedirectResponse
     {
         $this->authorize('update', $company);
 
+        if (! $company->is_active) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => __('Cannot pull data for an inactive company.')]);
+
+            return to_route('companies.index');
+        }
+
         $result = $syncer->sync($company);
+
+        JobRun::create([
+            'company_id' => $company->id,
+            'triggered_by' => 'manual',
+            'success' => $result['success'],
+            'pulled' => $result['pulled'],
+            'message' => $result['message'],
+        ]);
 
         Inertia::flash('toast', [
             'type' => $result['success'] ? 'success' : 'error',
@@ -122,7 +219,10 @@ class CompanyController extends Controller
         $deleted = Company::whereIn('id', $validated['ids'])
             ->get()
             ->filter(fn (Company $company) => $request->user()->can('delete', $company))
-            ->each->delete()
+            ->each(function (Company $company) {
+                AuditLog::record('company.deleted', $company);
+                $company->delete();
+            })
             ->count();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => trans_choice('{0} No companies deleted.|{1} :count company deleted.|[2,*] :count companies deleted.', $deleted, ['count' => $deleted])]);

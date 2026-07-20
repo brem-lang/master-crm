@@ -33,6 +33,7 @@ class UserUpdateRequest extends FormRequest
             'password' => ['nullable', 'string', Password::default(), 'confirmed'],
             'role' => ['required', Rule::in($assignableRoles)],
             'company_id' => ['nullable', 'integer', Rule::exists(Company::class, 'id')],
+            'is_active' => ['sometimes', 'boolean'],
         ];
     }
 }

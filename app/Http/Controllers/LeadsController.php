@@ -42,6 +42,7 @@ class LeadsController extends Controller
     {
         $search = trim((string) $request->query('search', ''));
         $status = $request->query('status');
+        $viewLeadId = $request->integer('view_lead') ?: null;
 
         $scoped = fn () => Lead::query()->when($companyId, fn ($query) => $query->where('company_id', $companyId));
 
@@ -73,6 +74,7 @@ class LeadsController extends Controller
                 ->latest('lead_created_at')
                 ->paginate($this->perPage($request))
                 ->withQueryString(),
+            'viewLead' => $viewLeadId ? Lead::with('company:id,name')->find($viewLeadId) : null,
             'filters' => [
                 'search' => $search,
                 'status' => $status,
