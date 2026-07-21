@@ -10,17 +10,16 @@ use App\Models\Company;
 use App\Models\JobRun;
 use App\Models\User;
 use App\Services\CompanyLeadsSyncer;
-use App\Services\WebsiteHealthChecker;
+use App\Support\CompanyHealth;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class CompanyController extends Controller
 {
-    public function index(Request $request, WebsiteHealthChecker $healthChecker): Response
+    public function index(Request $request, CompanyHealth $companyHealth): Response
     {
         $this->authorize('viewAny', Company::class);
 
@@ -45,7 +44,7 @@ class CompanyController extends Controller
             ->paginate($this->perPage($request))
             ->withQueryString();
 
-        $this->attachHealth($companies->getCollection(), $healthChecker);
+        $companyHealth->attach($companies->getCollection());
 
         return Inertia::render('admin/companies/index', [
             'stats' => [
@@ -63,46 +62,6 @@ class CompanyController extends Controller
                 'status' => $status,
             ],
         ]);
-    }
-
-    /**
-     * Attach website reachability and sync failure-streak data to each company.
-     *
-     * @param  Collection<int, Company>  $companies
-     */
-    private function attachHealth(Collection $companies, WebsiteHealthChecker $healthChecker): void
-    {
-        $statuses = $healthChecker->statusFor($companies);
-
-        $runsByCompany = JobRun::whereIn('company_id', $companies->pluck('id'))
-            ->orderByDesc('created_at')
-            ->get(['company_id', 'success', 'created_at'])
-            ->groupBy('company_id');
-
-        $companies->each(function (Company $company) use ($statuses, $runsByCompany) {
-            $company->setAttribute('website_status', $statuses[$company->id] ?? null);
-            $company->setAttribute('failure_streak', $this->failureStreak($runsByCompany->get($company->id, collect())));
-        });
-    }
-
-    /**
-     * Count consecutive failed runs, newest first, until the first success.
-     *
-     * @param  Collection<int, JobRun>  $runs
-     */
-    private function failureStreak(Collection $runs): int
-    {
-        $streak = 0;
-
-        foreach ($runs as $run) {
-            if ($run->success) {
-                break;
-            }
-
-            $streak++;
-        }
-
-        return $streak;
     }
 
     public function store(CompanyStoreRequest $request): RedirectResponse
@@ -126,8 +85,16 @@ class CompanyController extends Controller
     {
         $this->authorize('update', $company);
 
+        $data = $request->validated();
+
+        // Blank means "keep the current key" — the field is never prefilled
+        // in the edit form since api_key is never sent to the frontend.
+        if (blank($data['api_key'] ?? null)) {
+            unset($data['api_key']);
+        }
+
         $company->update([
-            ...$request->validated(),
+            ...$data,
             'is_active' => $request->boolean('is_active'),
         ]);
 

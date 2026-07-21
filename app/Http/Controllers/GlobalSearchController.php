@@ -14,7 +14,7 @@ class GlobalSearchController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $this->authorize('viewAny', Company::class);
+        abort_unless($request->user()->can('view-all-customers'), 403);
 
         $q = trim((string) $request->query('q', ''));
 

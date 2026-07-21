@@ -24,6 +24,27 @@ test('parent admin sees users across all companies', function () {
     expect($response->inertiaPage()['props']['users']['total'])->toBe(3);
 });
 
+test('parent admin sees the parent-admin role in the assignable roles list', function () {
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $response = $this->actingAs($parentAdmin)->get(route('users.index'));
+
+    $response->assertOk();
+    expect($response->inertiaPage()['props']['roles'])->toContain('parent-admin');
+});
+
+test('child admin does not see the parent-admin role in the assignable roles list', function () {
+    $company = Company::factory()->create();
+    $childAdmin = User::factory()->create(['company_id' => $company->id]);
+    $childAdmin->assignRole('child-admin');
+
+    $response = $this->actingAs($childAdmin)->get(route('users.index'));
+
+    $response->assertOk();
+    expect($response->inertiaPage()['props']['roles'])->not->toContain('parent-admin');
+});
+
 test('child admin only sees users in their own company', function () {
     $companyA = Company::factory()->create();
     $companyB = Company::factory()->create();

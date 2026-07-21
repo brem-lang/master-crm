@@ -1,19 +1,15 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import { Eye, Search } from 'lucide-react';
 import { useState } from 'react';
+import { BulkAssignBar } from '@/components/bulk-assign-bar';
 import { DataPagination } from '@/components/data-pagination';
 import Heading from '@/components/heading';
+import { LeadDetailsDialog } from '@/components/lead-details-dialog';
 import { RefreshButton } from '@/components/refresh-button';
 import { StatCard } from '@/components/stat-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
     Select,
@@ -32,8 +28,13 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
-import { index as leadsIndex } from '@/routes/leads';
-import type { Company, Lead, Paginator } from '@/types';
+import { useRowSelection } from '@/hooks/use-row-selection';
+import {
+    assign as assignLead,
+    bulkAssign,
+    index as leadsIndex,
+} from '@/routes/leads';
+import type { Auth, Company, Lead, Paginator, User } from '@/types';
 
 function statusBadgeClass(status: string): string {
     switch (status.toLowerCase()) {
@@ -50,145 +51,41 @@ function statusBadgeClass(status: string): string {
     }
 }
 
-function metaLabel(key: string): string {
-    return key
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function metaValue(value: unknown): string {
-    if (value === null || value === undefined || value === '') {
-        return '—';
-    }
-
-    if (typeof value === 'object') {
-        return JSON.stringify(value);
-    }
-
-    return String(value);
-}
-
-function LeadDetailsDialog({
-    lead,
-    open,
-    onOpenChange,
-}: {
-    lead: Lead | null;
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-}) {
-    if (!lead) {
-        return null;
-    }
-
-    const fields: [string, string][] = [
-        ['Email', metaValue(lead.email)],
-        ['Mobile', metaValue(lead.mobile)],
-        ['Country', metaValue(lead.country_code)],
-        ['IP address', metaValue(lead.ip_address)],
-        ['Affiliate', metaValue(lead.affiliate_name)],
-        ['Offer', metaValue(lead.offer_name)],
-        ['FTD', lead.is_ftd ? 'Yes' : 'No'],
-        [
-            'Created',
-            lead.lead_created_at
-                ? new Date(lead.lead_created_at).toLocaleString()
-                : '—',
-        ],
-    ];
-
-    const metaEntries = Object.entries(lead.meta ?? {}).filter(
-        ([, value]) => value !== null && value !== '' && value !== undefined,
-    );
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-3xl">
-                <DialogHeader>
-                    <DialogTitle className="text-xl">
-                        {[lead.first_name, lead.last_name]
-                            .filter(Boolean)
-                            .join(' ') || 'Lead details'}
-                    </DialogTitle>
-                    <DialogDescription>
-                        {lead.status ? (
-                            <Badge
-                                variant="outline"
-                                className={statusBadgeClass(lead.status)}
-                            >
-                                {lead.status}
-                            </Badge>
-                        ) : null}
-                    </DialogDescription>
-                </DialogHeader>
-
-                <div className="max-h-[70vh] space-y-6 overflow-y-auto">
-                    <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-                        {fields.map(([label, value]) => (
-                            <div key={label}>
-                                <dt className="text-muted-foreground">
-                                    {label}
-                                </dt>
-                                <dd className="font-medium wrap-break-word">
-                                    {value}
-                                </dd>
-                            </div>
-                        ))}
-                    </dl>
-
-                    {metaEntries.length > 0 && (
-                        <div>
-                            <p className="mb-2 text-sm font-medium text-muted-foreground">
-                                Additional details
-                            </p>
-                            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-                                {metaEntries.map(([key, value]) => (
-                                    <div key={key}>
-                                        <dt className="text-muted-foreground">
-                                            {metaLabel(key)}
-                                        </dt>
-                                        <dd className="font-medium wrap-break-word">
-                                            {metaValue(value)}
-                                        </dd>
-                                    </div>
-                                ))}
-                            </dl>
-                        </div>
-                    )}
-                </div>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
 type PageProps = {
+    auth: Auth;
     total: number;
     rejected: number;
     ftd: number;
     byStatus: Record<string, number>;
     leads: Paginator<Lead>;
     companies?: Pick<Company, 'id' | 'name'>[];
+    salesReps: Pick<User, 'id' | 'name' | 'company_id'>[];
     viewLead: Lead | null;
     filters: {
         search: string;
         status: string | null;
         company_id: number | null;
+        assigned_to: number | null;
     };
 };
 
 export default function LeadsIndex() {
     const {
+        auth,
         total,
         rejected,
         ftd,
         byStatus,
         leads,
         companies,
+        salesReps,
         viewLead,
         filters,
     } = usePage<PageProps>().props;
     const [search, setSearch] = useState(filters.search);
     const [viewingLead, setViewingLead] = useState<Lead | null>(null);
+    const canAssignLeads = auth.permissions?.includes('assign-leads');
+    const selection = useRowSelection(leads.data, leads.current_page);
 
     const applyFilters = (next: Partial<typeof filters>) => {
         router.get(
@@ -324,12 +221,88 @@ export default function LeadsIndex() {
                             </SelectContent>
                         </Select>
                     )}
+
+                    {salesReps.length > 0 && (
+                        <Select
+                            value={
+                                filters.assigned_to
+                                    ? String(filters.assigned_to)
+                                    : 'all'
+                            }
+                            onValueChange={(value) =>
+                                applyFilters({
+                                    assigned_to:
+                                        value === 'all' ? null : Number(value),
+                                })
+                            }
+                        >
+                            <SelectTrigger className="w-full sm:w-48">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectItem value="all">
+                                        All reps
+                                    </SelectItem>
+                                    {salesReps.map((rep) => (
+                                        <SelectItem
+                                            key={rep.id}
+                                            value={String(rep.id)}
+                                        >
+                                            {rep.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                    )}
                 </div>
+
+                {canAssignLeads && (
+                    <BulkAssignBar
+                        count={selection.selectedIds.length}
+                        reps={salesReps}
+                        onAssign={(assignedTo, onFinish) => {
+                            router.patch(
+                                bulkAssign().url,
+                                {
+                                    ids: selection.selectedIds,
+                                    assigned_to: assignedTo,
+                                },
+                                {
+                                    preserveScroll: true,
+                                    onSuccess: () =>
+                                        selection.setSelectedIds([]),
+                                    onFinish,
+                                },
+                            );
+                        }}
+                    />
+                )}
 
                 <div className="rounded-md border">
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                {canAssignLeads && (
+                                    <TableHead className="w-px">
+                                        <Checkbox
+                                            checked={
+                                                selection.allSelected
+                                                    ? true
+                                                    : selection.someSelected
+                                                      ? 'indeterminate'
+                                                      : false
+                                            }
+                                            onCheckedChange={(checked) =>
+                                                selection.toggleAll(
+                                                    checked === true,
+                                                )
+                                            }
+                                            aria-label="Select all"
+                                        />
+                                    </TableHead>
+                                )}
                                 <TableHead>Name</TableHead>
                                 {companies && (
                                     <TableHead className="hidden md:table-cell">
@@ -340,6 +313,11 @@ export default function LeadsIndex() {
                                     Email
                                 </TableHead>
                                 <TableHead>Status</TableHead>
+                                {salesReps.length > 0 && (
+                                    <TableHead className="hidden md:table-cell">
+                                        Assigned to
+                                    </TableHead>
+                                )}
                                 <TableHead className="hidden lg:table-cell">
                                     Affiliate
                                 </TableHead>
@@ -354,7 +332,30 @@ export default function LeadsIndex() {
                         </TableHeader>
                         <TableBody>
                             {leads.data.map((lead) => (
-                                <TableRow key={lead.id}>
+                                <TableRow
+                                    key={lead.id}
+                                    data-state={
+                                        selection.isSelected(lead.id)
+                                            ? 'selected'
+                                            : undefined
+                                    }
+                                >
+                                    {canAssignLeads && (
+                                        <TableCell>
+                                            <Checkbox
+                                                checked={selection.isSelected(
+                                                    lead.id,
+                                                )}
+                                                onCheckedChange={(checked) =>
+                                                    selection.toggleOne(
+                                                        lead.id,
+                                                        checked === true,
+                                                    )
+                                                }
+                                                aria-label={`Select ${[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'lead'}`}
+                                            />
+                                        </TableCell>
+                                    )}
                                     <TableCell className="font-medium">
                                         {[lead.first_name, lead.last_name]
                                             .filter(Boolean)
@@ -382,6 +383,86 @@ export default function LeadsIndex() {
                                             '—'
                                         )}
                                     </TableCell>
+                                    {salesReps.length > 0 &&
+                                        (() => {
+                                            const companyReps =
+                                                salesReps.filter(
+                                                    (rep) =>
+                                                        rep.company_id ===
+                                                        lead.company_id,
+                                                );
+
+                                            return (
+                                                <TableCell className="hidden md:table-cell">
+                                                    {canAssignLeads &&
+                                                    companyReps.length > 0 ? (
+                                                        <Select
+                                                            value={
+                                                                lead.assigned_to
+                                                                    ? String(
+                                                                          lead.assigned_to,
+                                                                      )
+                                                                    : 'unassigned'
+                                                            }
+                                                            onValueChange={(
+                                                                value,
+                                                            ) =>
+                                                                router.patch(
+                                                                    assignLead(
+                                                                        lead.id,
+                                                                    ).url,
+                                                                    {
+                                                                        assigned_to:
+                                                                            value ===
+                                                                            'unassigned'
+                                                                                ? null
+                                                                                : Number(
+                                                                                      value,
+                                                                                  ),
+                                                                    },
+                                                                    {
+                                                                        preserveScroll: true,
+                                                                        preserveState: true,
+                                                                    },
+                                                                )
+                                                            }
+                                                        >
+                                                            <SelectTrigger className="w-40">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectGroup>
+                                                                    <SelectItem value="unassigned">
+                                                                        Unassigned
+                                                                    </SelectItem>
+                                                                    {companyReps.map(
+                                                                        (
+                                                                            rep,
+                                                                        ) => (
+                                                                            <SelectItem
+                                                                                key={
+                                                                                    rep.id
+                                                                                }
+                                                                                value={String(
+                                                                                    rep.id,
+                                                                                )}
+                                                                            >
+                                                                                {
+                                                                                    rep.name
+                                                                                }
+                                                                            </SelectItem>
+                                                                        ),
+                                                                    )}
+                                                                </SelectGroup>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    ) : (
+                                                        (lead.assignee?.name ??
+                                                        '—')
+                                                    )}
+                                                </TableCell>
+                                            );
+                                        })()}
                                     <TableCell className="hidden lg:table-cell">
                                         {lead.affiliate_name ?? '—'}
                                     </TableCell>

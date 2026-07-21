@@ -3,7 +3,6 @@ import {
     Activity,
     AlertTriangle,
     Clock,
-    RefreshCw,
     TrendingUp,
     Users,
 } from 'lucide-react';
@@ -22,7 +21,7 @@ import {
 import { DateRangeFilter } from '@/components/dashboard/date-range-filter';
 import { MetricCard } from '@/components/dashboard/metric-card';
 import Heading from '@/components/heading';
-import { Button } from '@/components/ui/button';
+import { RefreshButton } from '@/components/refresh-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     ChartContainer,
@@ -173,10 +172,7 @@ function AnalyticsDashboard({ analytics }: { analytics: DashboardAnalytics }) {
                     title="Dashboard"
                     description="Performance overview and analytics"
                 />
-                <Button variant="outline" onClick={() => router.reload()}>
-                    <RefreshCw />
-                    Refresh
-                </Button>
+                <RefreshButton />
             </div>
 
             <Card className="gap-0 py-3">

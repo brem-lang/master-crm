@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+} from '@/components/ui/sheet';
 import { relativeTime } from '@/lib/relative-time';
 import {
     clear as clearAllNotifications,
@@ -116,14 +116,14 @@ export function NotificationsBell() {
     };
 
     return (
-        <DropdownMenu
+        <Sheet
             onOpenChange={(open) => {
                 if (open) {
                     loadNotifications();
                 }
             }}
         >
-            <DropdownMenuTrigger asChild>
+            <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative">
                     <Bell className="size-4" />
                     {unreadCount > 0 && (
@@ -135,77 +135,79 @@ export function NotificationsBell() {
                         </Badge>
                     )}
                 </Button>
-            </DropdownMenuTrigger>
+            </SheetTrigger>
 
-            <DropdownMenuContent align="end" className="w-80">
-                <div className="flex items-center justify-between px-2 py-1.5">
-                    <DropdownMenuLabel className="p-0">
-                        Notifications
-                    </DropdownMenuLabel>
-                    <div className="flex items-center gap-3">
-                        {unreadCount > 0 && (
-                            <button
-                                type="button"
-                                className="text-xs text-muted-foreground hover:text-foreground"
-                                onClick={markAllAsRead}
-                            >
-                                Mark all read
-                            </button>
-                        )}
-                        {items !== null && items.length > 0 && (
-                            <button
-                                type="button"
-                                className="text-xs text-muted-foreground hover:text-foreground"
-                                onClick={clearAll}
-                            >
-                                Clear all
-                            </button>
-                        )}
-                    </div>
-                </div>
-
-                {items === null ? (
-                    <p className="px-2 py-4 text-center text-sm text-muted-foreground">
-                        Loading…
-                    </p>
-                ) : items.length === 0 ? (
-                    <p className="px-2 py-4 text-center text-sm text-muted-foreground">
-                        No notifications yet.
-                    </p>
-                ) : (
-                    items.map((item) => (
-                        <DropdownMenuItem
-                            key={item.id}
-                            className="flex flex-col items-start gap-1 whitespace-normal"
-                            onSelect={(event) => {
-                                event.preventDefault();
-                                markAsRead(item);
-                            }}
-                        >
-                            <div className="flex w-full items-center justify-between gap-2">
-                                <span className="font-medium">
-                                    {item.data.company_name ?? 'Company'}
-                                </span>
-                                <Badge
-                                    variant="outline"
-                                    className={statusBadgeClass(
-                                        item.data.success,
-                                    )}
+            <SheetContent side="right" className="w-full sm:max-w-md">
+                <SheetHeader>
+                    <div className="flex items-center justify-between gap-2">
+                        <SheetTitle>Notifications</SheetTitle>
+                        <div className="flex items-center gap-3 pr-6">
+                            {unreadCount > 0 && (
+                                <button
+                                    type="button"
+                                    className="text-xs text-muted-foreground hover:text-foreground"
+                                    onClick={markAllAsRead}
                                 >
-                                    {item.data.success ? 'Success' : 'Failed'}
-                                </Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                {item.data.message}
-                            </p>
-                            <span className="text-xs text-muted-foreground">
-                                {relativeTime(item.created_at)}
-                                {!item.read_at && ' · unread'}
-                            </span>
-                        </DropdownMenuItem>
-                    ))
-                )}
-            </DropdownMenuContent>
-        </DropdownMenu>
+                                    Mark all read
+                                </button>
+                            )}
+                            {items !== null && items.length > 0 && (
+                                <button
+                                    type="button"
+                                    className="text-xs text-muted-foreground hover:text-foreground"
+                                    onClick={clearAll}
+                                >
+                                    Clear all
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </SheetHeader>
+
+                <div className="flex-1 space-y-1 overflow-y-auto px-4 pb-4">
+                    {items === null ? (
+                        <p className="py-8 text-center text-sm text-muted-foreground">
+                            Loading…
+                        </p>
+                    ) : items.length === 0 ? (
+                        <p className="py-8 text-center text-sm text-muted-foreground">
+                            No notifications yet.
+                        </p>
+                    ) : (
+                        items.map((item) => (
+                            <button
+                                key={item.id}
+                                type="button"
+                                className="flex w-full flex-col items-start gap-1 rounded-md border p-3 text-left hover:bg-accent"
+                                onClick={() => markAsRead(item)}
+                            >
+                                <div className="flex w-full items-center justify-between gap-2">
+                                    <span className="font-medium">
+                                        {item.data.company_name ?? 'Company'}
+                                    </span>
+                                    <Badge
+                                        variant="outline"
+                                        className={statusBadgeClass(
+                                            item.data.success,
+                                        )}
+                                    >
+                                        {item.data.success
+                                            ? 'Success'
+                                            : 'Failed'}
+                                    </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    {item.data.message}
+                                </p>
+                                <span className="text-xs text-muted-foreground">
+                                    {relativeTime(item.created_at)}
+                                    {!item.read_at && ' · unread'}
+                                </span>
+                            </button>
+                        ))
+                    )}
+                </div>
+            </SheetContent>
+        </Sheet>
     );
 }

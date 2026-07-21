@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    Activity,
     Building2,
     ClipboardList,
     ListChecks,
@@ -7,6 +8,7 @@ import {
     LayoutGrid,
     Settings,
     ShieldCheck,
+    Trophy,
     UsersRound,
     Users,
 } from 'lucide-react';
@@ -26,9 +28,15 @@ import {
 import { dashboard } from '@/routes';
 import { index as auditLogIndex } from '@/routes/audit-log';
 import { index as companiesIndex } from '@/routes/companies';
+import { index as companyAuditLogIndex } from '@/routes/company-audit-log';
+import { index as companyHealthIndex } from '@/routes/company-health';
 import { index as directoryIndex } from '@/routes/directory';
 import { index as jobsIndex } from '@/routes/jobs';
-import { index as leadsIndex } from '@/routes/leads';
+import {
+    index as leadsIndex,
+    leaderboard as leaderboardIndex,
+} from '@/routes/leads';
+import { index as myLeadsIndex } from '@/routes/my-leads';
 import { index as rolesIndex } from '@/routes/roles';
 import { index as usersIndex } from '@/routes/users';
 import type { Auth, NavItem } from '@/types';
@@ -83,6 +91,44 @@ export function AppSidebar() {
                       title: 'Leads',
                       href: leadsIndex(),
                       icon: UsersRound,
+                  },
+              ]
+            : []),
+        ...(!canViewLeads && auth.permissions?.includes('manage-leads')
+            ? [
+                  {
+                      title: 'My Leads',
+                      href: myLeadsIndex(),
+                      icon: UsersRound,
+                  },
+              ]
+            : []),
+        ...(!!auth.company && auth.permissions?.includes('manage-own-company')
+            ? [
+                  {
+                      title: 'Company Health',
+                      href: companyHealthIndex(),
+                      icon: Activity,
+                  },
+              ]
+            : []),
+        ...(!!auth.company && auth.permissions?.includes('view-reports')
+            ? [
+                  {
+                      title: 'Leaderboard',
+                      href: leaderboardIndex(),
+                      icon: Trophy,
+                  },
+              ]
+            : []),
+        ...(!!auth.company &&
+        auth.permissions?.includes('view-reports') &&
+        !auth.permissions?.includes('manage-companies')
+            ? [
+                  {
+                      title: 'Activity Log',
+                      href: companyAuditLogIndex(),
+                      icon: ClipboardList,
                   },
               ]
             : []),

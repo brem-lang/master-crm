@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $company_id
+ * @property int|null $assigned_to
  * @property string $external_id
  * @property string|null $request_id
  * @property string|null $first_name
@@ -33,6 +34,7 @@ use Illuminate\Support\Carbon;
  */
 #[Fillable([
     'company_id',
+    'assigned_to',
     'external_id',
     'request_id',
     'first_name',
@@ -61,6 +63,14 @@ class Lead extends Model
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
     }
 
     /**

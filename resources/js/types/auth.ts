@@ -16,7 +16,6 @@ export type Company = {
     website?: string | null;
     website_status?: 'online' | 'offline' | null;
     api_url?: string;
-    api_key?: string;
     leads_count_url?: string | null;
     is_active?: boolean;
     users_count?: number;
@@ -43,6 +42,7 @@ export type User = {
 export type Lead = {
     id: number;
     company_id: number;
+    assigned_to: number | null;
     external_id: string;
     request_id: string | null;
     first_name: string | null;
@@ -58,6 +58,7 @@ export type Lead = {
     meta: Record<string, unknown> | null;
     lead_created_at: string | null;
     company?: Pick<Company, 'id' | 'name'> | null;
+    assignee?: Pick<User, 'id' | 'name'> | null;
 };
 
 export type JobRun = {

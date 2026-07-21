@@ -85,7 +85,7 @@ export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="api_url">API URL</Label>
+                                <Label htmlFor="api_url">Lead API URL</Label>
                                 <Input
                                     id="api_url"
                                     name="api_url"
@@ -102,9 +102,12 @@ export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
                                 <Input
                                     id="api_key"
                                     name="api_key"
-                                    defaultValue={company?.api_key ?? ''}
-                                    required
-                                    placeholder="Shared secret used to authenticate"
+                                    required={!isEdit}
+                                    placeholder={
+                                        isEdit
+                                            ? 'Leave blank to keep current key'
+                                            : 'Shared secret used to authenticate'
+                                    }
                                 />
                                 <InputError message={errors.api_key} />
                             </div>

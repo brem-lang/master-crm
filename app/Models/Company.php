@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\CompanyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -27,6 +28,7 @@ use Illuminate\Support\Str;
  * @property Carbon|null $updated_at
  */
 #[Fillable(['name', 'slug', 'website', 'api_url', 'api_key', 'leads_count_url', 'is_active', 'last_synced_at', 'last_synced_since', 'last_synced_cursor'])]
+#[Hidden(['api_key'])]
 class Company extends Model
 {
     /** @use HasFactory<CompanyFactory> */

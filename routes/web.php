@@ -19,3 +19,6 @@ require __DIR__.'/jobs.php';
 require __DIR__.'/audit-log.php';
 require __DIR__.'/notifications.php';
 require __DIR__.'/search.php';
+require __DIR__.'/company-health.php';
+require __DIR__.'/company-audit-log.php';
+require __DIR__.'/my-leads.php';

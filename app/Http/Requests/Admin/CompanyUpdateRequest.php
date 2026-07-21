@@ -29,7 +29,7 @@ class CompanyUpdateRequest extends FormRequest
             'website' => ['nullable', 'string', 'max:255', 'url'],
             'api_url' => ['required', 'string', 'max:255', 'url'],
             'api_key' => [
-                'required',
+                'nullable',
                 'string',
                 'max:255',
                 Rule::unique(Company::class, 'api_key')->ignore($this->route('company')?->id),

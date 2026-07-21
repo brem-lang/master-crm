@@ -13,9 +13,16 @@ class WebsiteHealthChecker
 {
     private const CACHE_TTL_MINUTES = 5;
 
-    private const REQUEST_TIMEOUT_SECONDS = 3;
+    /**
+     * Offline results are cached for a much shorter time than online ones, so a
+     * slow-but-real site that briefly times out self-corrects quickly instead of
+     * showing "offline" for the full cache window.
+     */
+    private const OFFLINE_CACHE_TTL_MINUTES = 1;
 
-    private const CONNECT_TIMEOUT_SECONDS = 2;
+    private const REQUEST_TIMEOUT_SECONDS = 8;
+
+    private const CONNECT_TIMEOUT_SECONDS = 5;
 
     /**
      * Resolve a reachability status ('online'|'offline'|null) for each company, keyed by id.
@@ -76,7 +83,9 @@ class WebsiteHealthChecker
         foreach ($companies as $company) {
             $status = $this->resolveStatus($company, $responses[(string) $company->id] ?? null);
             $results[$company->id] = $status;
-            Cache::put($this->cacheKey($company), $status, now()->addMinutes(self::CACHE_TTL_MINUTES));
+
+            $ttl = $status === 'online' ? self::CACHE_TTL_MINUTES : self::OFFLINE_CACHE_TTL_MINUTES;
+            Cache::put($this->cacheKey($company), $status, now()->addMinutes($ttl));
         }
 
         return $results;
@@ -91,12 +100,10 @@ class WebsiteHealthChecker
             return 'offline';
         }
 
-        if ($response instanceof ConnectionException) {
-            return 'offline';
-        }
-
-        // A 405/501 means the server rejected HEAD; retry with GET before giving up.
-        if ($response === null || in_array($response->status(), [405, 501], true)) {
+        // HEAD can time out or be rejected (405/501) on servers that handle it
+        // poorly even though the site is genuinely reachable — retry with GET
+        // before giving up.
+        if ($response instanceof ConnectionException || $response === null || in_array($response->status(), [405, 501], true)) {
             try {
                 Http::connectTimeout(self::CONNECT_TIMEOUT_SECONDS)
                     ->timeout(self::REQUEST_TIMEOUT_SECONDS)

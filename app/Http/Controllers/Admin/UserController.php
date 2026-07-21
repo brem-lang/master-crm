@@ -50,7 +50,9 @@ class UserController extends Controller
                 ->latest()
                 ->paginate($this->perPage($request))
                 ->withQueryString(),
-            'roles' => Role::pluck('name'),
+            'roles' => $isParentAdmin
+                ? Role::pluck('name')
+                : Role::where('name', '!=', 'parent-admin')->pluck('name'),
             'companies' => $isParentAdmin
                 ? Company::where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : [],
