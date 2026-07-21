@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Company;
 use App\Models\JobRun;
+use App\Services\CompanyDirectorySyncer;
 use App\Services\CompanyLeadsSyncer;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -49,7 +50,7 @@ class PullCompanyLeadsJob implements ShouldBeUnique, ShouldQueue
         return [60, 300, 900];
     }
 
-    public function handle(CompanyLeadsSyncer $syncer): void
+    public function handle(CompanyLeadsSyncer $syncer, CompanyDirectorySyncer $directorySyncer): void
     {
         if (! $this->company->is_active) {
             logger("Skipping lead sync for inactive company #{$this->company->id}.");
@@ -61,14 +62,15 @@ class PullCompanyLeadsJob implements ShouldBeUnique, ShouldQueue
 
         logger($result);
 
-        JobRun::create([
-            'company_id' => $this->company->id,
-            'triggered_by' => 'scheduled',
-            'success' => $result['success'],
-            'pulled' => $result['pulled'],
-            'message' => $result['message'],
-            'attempt' => $this->attempts(),
-        ]);
+        $this->recordJobRun($result);
+
+        if (filled($this->company->affiliates_url)) {
+            $this->recordJobRun($directorySyncer->syncAffiliates($this->company));
+        }
+
+        if (filled($this->company->advertisers_url)) {
+            $this->recordJobRun($directorySyncer->syncAdvertisers($this->company));
+        }
 
         if (! $result['success']) {
             // CompanyLeadsSyncer never throws — it always returns a result array so the
@@ -77,5 +79,20 @@ class PullCompanyLeadsJob implements ShouldBeUnique, ShouldQueue
             // actually get a chance to retry a transient failure.
             throw new RuntimeException($result['message']);
         }
+    }
+
+    /**
+     * @param  array{success: bool, pulled: int, message: string}  $result
+     */
+    private function recordJobRun(array $result): void
+    {
+        JobRun::create([
+            'company_id' => $this->company->id,
+            'triggered_by' => 'scheduled',
+            'success' => $result['success'],
+            'pulled' => $result['pulled'],
+            'message' => $result['message'],
+            'attempt' => $this->attempts(),
+        ]);
     }
 }

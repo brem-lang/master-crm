@@ -3,12 +3,15 @@ import {
     Activity,
     Building2,
     ClipboardList,
+    Handshake,
     ListChecks,
     Globe,
     LayoutGrid,
+    Megaphone,
     Settings,
     ShieldCheck,
     Trophy,
+    UserRoundX,
     UsersRound,
     Users,
 } from 'lucide-react';
@@ -26,6 +29,8 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as advertisersIndex } from '@/routes/advertisers';
+import { index as affiliatesIndex } from '@/routes/affiliates';
 import { index as auditLogIndex } from '@/routes/audit-log';
 import { index as companiesIndex } from '@/routes/companies';
 import { index as companyAuditLogIndex } from '@/routes/company-audit-log';
@@ -35,6 +40,7 @@ import { index as jobsIndex } from '@/routes/jobs';
 import {
     index as leadsIndex,
     leaderboard as leaderboardIndex,
+    rejected as rejectedLeadsIndex,
 } from '@/routes/leads';
 import { index as myLeadsIndex } from '@/routes/my-leads';
 import { index as rolesIndex } from '@/routes/roles';
@@ -42,7 +48,10 @@ import { index as usersIndex } from '@/routes/users';
 import type { Auth, NavItem } from '@/types';
 
 export function AppSidebar() {
-    const { auth } = usePage<{ auth: Auth }>().props;
+    const { auth, rejectedLeadsCount } = usePage<{
+        auth: Auth;
+        rejectedLeadsCount: number | null;
+    }>().props;
 
     const settingsItems: NavItem[] = [
         ...(auth.permissions?.includes('manage-companies')
@@ -91,6 +100,22 @@ export function AppSidebar() {
                       title: 'Leads',
                       href: leadsIndex(),
                       icon: UsersRound,
+                  },
+                  {
+                      title: 'Rejected Leads',
+                      href: rejectedLeadsIndex(),
+                      icon: UserRoundX,
+                      badge: rejectedLeadsCount ?? undefined,
+                  },
+                  {
+                      title: 'Affiliates',
+                      href: affiliatesIndex(),
+                      icon: Handshake,
+                  },
+                  {
+                      title: 'Advertisers',
+                      href: advertisersIndex(),
+                      icon: Megaphone,
                   },
               ]
             : []),

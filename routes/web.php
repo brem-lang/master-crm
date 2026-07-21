@@ -22,3 +22,5 @@ require __DIR__.'/search.php';
 require __DIR__.'/company-health.php';
 require __DIR__.'/company-audit-log.php';
 require __DIR__.'/my-leads.php';
+require __DIR__.'/affiliates.php';
+require __DIR__.'/advertisers.php';

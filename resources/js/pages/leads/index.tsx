@@ -54,7 +54,6 @@ function statusBadgeClass(status: string): string {
 type PageProps = {
     auth: Auth;
     total: number;
-    rejected: number;
     ftd: number;
     byStatus: Record<string, number>;
     leads: Paginator<Lead>;
@@ -73,7 +72,6 @@ export default function LeadsIndex() {
     const {
         auth,
         total,
-        rejected,
         ftd,
         byStatus,
         leads,
@@ -132,9 +130,8 @@ export default function LeadsIndex() {
                     <RefreshButton />
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2">
                     <StatCard label="Total leads" value={total} />
-                    <StatCard label="Rejected" value={rejected} />
                     <StatCard label="FTD" value={ftd} />
                 </div>
 

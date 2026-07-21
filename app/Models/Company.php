@@ -19,15 +19,31 @@ use Illuminate\Support\Str;
  * @property string $api_url
  * @property string $api_key
  * @property string|null $leads_count_url
+ * @property string|null $affiliates_url
+ * @property string|null $advertisers_url
+ * @property string|null $affiliate_count_api_url
+ * @property string|null $advertiser_count_api_url
  * @property bool $is_active
  * @property Carbon|null $last_synced_at
  * @property Carbon|null $last_synced_since
  * @property string|null $last_synced_cursor
+ * @property Carbon|null $affiliates_last_synced_at
+ * @property Carbon|null $affiliates_last_synced_since
+ * @property string|null $affiliates_last_synced_cursor
+ * @property Carbon|null $advertisers_last_synced_at
+ * @property Carbon|null $advertisers_last_synced_since
+ * @property string|null $advertisers_last_synced_cursor
  * @property array<string, mixed>|null $db_connection
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'slug', 'website', 'api_url', 'api_key', 'leads_count_url', 'is_active', 'last_synced_at', 'last_synced_since', 'last_synced_cursor'])]
+#[Fillable([
+    'name', 'slug', 'website', 'api_url', 'api_key', 'leads_count_url', 'affiliates_url', 'advertisers_url',
+    'affiliate_count_api_url', 'advertiser_count_api_url',
+    'is_active', 'last_synced_at', 'last_synced_since', 'last_synced_cursor',
+    'affiliates_last_synced_at', 'affiliates_last_synced_since', 'affiliates_last_synced_cursor',
+    'advertisers_last_synced_at', 'advertisers_last_synced_since', 'advertisers_last_synced_cursor',
+])]
 #[Hidden(['api_key'])]
 class Company extends Model
 {
@@ -48,6 +64,22 @@ class Company extends Model
     public function leads(): HasMany
     {
         return $this->hasMany(Lead::class);
+    }
+
+    /**
+     * @return HasMany<Affiliate, $this>
+     */
+    public function affiliates(): HasMany
+    {
+        return $this->hasMany(Affiliate::class);
+    }
+
+    /**
+     * @return HasMany<Advertiser, $this>
+     */
+    public function advertisers(): HasMany
+    {
+        return $this->hasMany(Advertiser::class);
     }
 
     /**
@@ -78,6 +110,10 @@ class Company extends Model
             'api_key' => 'encrypted',
             'last_synced_at' => 'datetime',
             'last_synced_since' => 'datetime',
+            'affiliates_last_synced_at' => 'datetime',
+            'affiliates_last_synced_since' => 'datetime',
+            'advertisers_last_synced_at' => 'datetime',
+            'advertisers_last_synced_since' => 'datetime',
         ];
     }
 }

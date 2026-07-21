@@ -4,10 +4,13 @@ namespace App\Services;
 
 use App\Models\Company;
 use App\Models\Lead;
+use App\Services\Concerns\BulkUpsertsExternalRecords;
 use App\Support\ChildCrmSyncException;
 
 class CompanyLeadsSyncer
 {
+    use BulkUpsertsExternalRecords;
+
     private const LIMIT = 100;
 
     /**
@@ -92,21 +95,27 @@ class CompanyLeadsSyncer
             ];
         }
 
-        $pages = min($first['pages'] ?? 1, self::MAX_PAGES);
+        $totalPages = $first['pages'] ?? 1;
+        $pages = min($totalPages, self::MAX_PAGES);
+
+        if ($totalPages > self::MAX_PAGES) {
+            logger()->warning("{$company->name} has {$totalPages} lead pages, more than the ".self::MAX_PAGES.' per-run cap — this run only pulled the first '.self::MAX_PAGES.'; the rest will be picked up on a later run.');
+        }
+
         $pulled = 0;
         $skipped = 0;
-        $lastResponse = $first;
 
         try {
             for ($page = 0; $page < $pages; $page++) {
                 $response = $page === 0 ? $first : $this->client->fetchPage($company, $page, self::LIMIT, $since);
-                $lastResponse = $response;
 
                 $items = $response['data'] ?? [];
 
                 if ($items === []) {
                     break;
                 }
+
+                $rows = [];
 
                 foreach ($items as $item) {
                     if (blank($item['id'] ?? null)) {
@@ -115,18 +124,22 @@ class CompanyLeadsSyncer
                         continue;
                     }
 
-                    $lead = Lead::updateOrCreate(
-                        ['company_id' => $company->id, 'external_id' => $item['id']],
-                        $this->mapLead($item),
-                    );
-
-                    // The child API's `since` filter is inclusive, so the last
-                    // already-known lead from the previous run is re-fetched every
-                    // time — only count genuinely new inserts, not that re-touch.
-                    if ($lead->wasRecentlyCreated) {
-                        $pulled++;
-                    }
+                    $rows[$item['id']] = $this->mapLead($item);
                 }
+
+                // The child API's `since` filter is inclusive, so the last
+                // already-known lead from the previous run is re-fetched every
+                // time — bulkUpsert() only counts genuinely new inserts, not
+                // that re-touch.
+                $pulled += $this->bulkUpsert(Lead::class, $company, $rows);
+
+                // Persist the resume point after every page, not just once at the
+                // end — if the job gets killed by its timeout mid-sync, the next
+                // run resumes from here instead of re-pulling from scratch.
+                $company->update([
+                    'last_synced_since' => $response['next_since'] ?? $company->last_synced_since,
+                    'last_synced_cursor' => $response['next_cursor'] ?? $company->last_synced_cursor,
+                ]);
             }
         } catch (ChildCrmSyncException $e) {
             // Partial progress from earlier pages in this run is already saved
@@ -143,11 +156,7 @@ class CompanyLeadsSyncer
             ->where('company_id', $company->id)
             ->update(['synced_to_parent_at' => now()]);
 
-        $company->update([
-            'last_synced_at' => now(),
-            'last_synced_since' => $lastResponse['next_since'] ?? $company->last_synced_since,
-            'last_synced_cursor' => $lastResponse['next_cursor'] ?? $company->last_synced_cursor,
-        ]);
+        $company->update(['last_synced_at' => now()]);
 
         return [
             'success' => true,
@@ -161,6 +170,9 @@ class CompanyLeadsSyncer
     }
 
     /**
+     * Builds DB-ready attributes for a bulk upsert — `meta` is pre-serialized
+     * here since a raw upsert bypasses the model's `array` cast.
+     *
      * @param  array<string, mixed>  $item
      * @return array<string, mixed>
      */
@@ -180,7 +192,7 @@ class CompanyLeadsSyncer
             'affiliate_name' => $item['affiliates']['name'] ?? null,
             'is_ftd' => (bool) ($item['is_ftd'] ?? false),
             'offer_name' => $item['offer_name'] ?? null,
-            'meta' => $meta,
+            'meta' => json_encode($meta),
             'lead_created_at' => $item['created_at'] ?? null,
             'synced_at' => now(),
         ];

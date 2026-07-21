@@ -1,0 +1,20 @@
+[Unit]
+Description=Master CRM queue worker (leads/affiliates/advertisers sync)
+After=network.target mysql.service postgresql.service
+
+[Service]
+User=forge
+Group=forge
+Restart=always
+RestartSec=5
+# --sleep=3: poll delay when the queue is empty.
+# --tries=3 --backoff sourced from PullCompanyLeadsJob itself; this is just the
+# worker-level fallback for jobs that don't define their own.
+# --max-time=3600: recycle the worker hourly so a slow memory leak or stale
+# opcode cache never lingers indefinitely; systemd's Restart=always brings it
+# straight back up.
+ExecStart=/usr/bin/php /home/forge/master-crm/artisan queue:work database --sleep=3 --tries=3 --max-time=3600
+WorkingDirectory=/home/forge/master-crm
+
+[Install]
+WantedBy=multi-user.target

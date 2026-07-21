@@ -17,6 +17,10 @@ export type Company = {
     website_status?: 'online' | 'offline' | null;
     api_url?: string;
     leads_count_url?: string | null;
+    affiliates_url?: string | null;
+    advertisers_url?: string | null;
+    affiliate_count_api_url?: string | null;
+    advertiser_count_api_url?: string | null;
     is_active?: boolean;
     users_count?: number;
     last_synced_at?: string | null;
@@ -59,6 +63,33 @@ export type Lead = {
     lead_created_at: string | null;
     company?: Pick<Company, 'id' | 'name'> | null;
     assignee?: Pick<User, 'id' | 'name'> | null;
+};
+
+export type Affiliate = {
+    id: number;
+    company_id: number;
+    external_id: string;
+    name: string;
+    is_active: boolean;
+    meta: Record<string, unknown> | null;
+    synced_at: string | null;
+    company?: Pick<Company, 'id' | 'name'> | null;
+};
+
+export type Advertiser = {
+    id: number;
+    company_id: number;
+    external_id: string;
+    name: string;
+    advertiser_type: string | null;
+    url: string | null;
+    is_active: boolean;
+    daily_cap: number | null;
+    hourly_cap: number | null;
+    default_deal_type: string | null;
+    meta: Record<string, unknown> | null;
+    synced_at: string | null;
+    company?: Pick<Company, 'id' | 'name'> | null;
 };
 
 export type JobRun = {

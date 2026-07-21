@@ -39,6 +39,32 @@ class LeadsController extends Controller
         return Inertia::render('leads/index', $metrics);
     }
 
+    public function rejected(Request $request): Response
+    {
+        $user = $request->user();
+
+        $companyScoped = $user->company_id && $user->can('view-company-customers');
+        $allCompanies = $user->can('view-all-customers');
+
+        abort_unless($companyScoped || $allCompanies, 403);
+
+        $companyId = $companyScoped ? $user->company_id : ($request->integer('company_id') ?: null);
+
+        $metrics = $this->leadsMetrics($request, $companyId, rejectedOnly: true);
+
+        if (! $companyScoped) {
+            $metrics['companies'] = Company::where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+        }
+
+        $metrics['salesReps'] = $companyScoped
+            ? User::where('company_id', $companyId)->where('is_active', true)->role('sales-rep')->orderBy('name')->get(['id', 'name', 'company_id'])
+            : ($allCompanies ? User::whereNotNull('company_id')->where('is_active', true)->role('sales-rep')->orderBy('name')->get(['id', 'name', 'company_id']) : []);
+
+        return Inertia::render('leads/rejected', $metrics);
+    }
+
     public function assign(Request $request, Lead $lead): RedirectResponse
     {
         $user = $request->user();
@@ -117,30 +143,37 @@ class LeadsController extends Controller
 
     /**
      * Build lead metrics/list for a single company, or across all companies when
-     * `$companyId` is null (parent admin view).
+     * `$companyId` is null (parent admin view). `$rejectedOnly` toggles between
+     * the main Leads page (everything except rejected) and the Rejected Leads
+     * page (only rejected) — `status` is nullable free text, so "not rejected"
+     * must stay null-safe rather than relying on `status != 'rejected'` alone.
      *
      * @return array<string, mixed>
      */
-    private function leadsMetrics(Request $request, ?int $companyId): array
+    private function leadsMetrics(Request $request, ?int $companyId, bool $rejectedOnly = false): array
     {
         $search = trim((string) $request->query('search', ''));
         $status = $request->query('status');
         $assignedTo = $request->integer('assigned_to') ?: null;
         $viewLeadId = $request->integer('view_lead') ?: null;
 
-        $scoped = fn () => Lead::query()->when($companyId, fn ($query) => $query->where('company_id', $companyId));
+        $scoped = fn () => Lead::query()
+            ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
+            ->when(
+                $rejectedOnly,
+                fn ($query) => $query->where('status', 'rejected'),
+                fn ($query) => $query->where(fn ($query) => $query->where('status', '!=', 'rejected')->orWhereNull('status')),
+            );
 
         $stats = $scoped()
             ->selectRaw('
                 count(*) as total,
-                sum(case when status = ? then 1 else 0 end) as rejected,
                 sum(case when is_ftd = 1 then 1 else 0 end) as ftd
-            ', ['rejected'])
+            ')
             ->first();
 
         return [
             'total' => (int) $stats->total,
-            'rejected' => (int) $stats->rejected,
             'ftd' => (int) $stats->ftd,
             'byStatus' => $scoped()
                 ->select('status')

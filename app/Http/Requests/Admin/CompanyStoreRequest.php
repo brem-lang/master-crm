@@ -24,6 +24,10 @@ class CompanyStoreRequest extends FormRequest
             'api_url' => ['required', 'string', 'max:255', 'url'],
             'api_key' => ['required', 'string', 'max:255', 'unique:'.Company::class.',api_key'],
             'leads_count_url' => ['nullable', 'string', 'max:255', 'url'],
+            'affiliates_url' => ['nullable', 'string', 'max:255', 'url'],
+            'advertisers_url' => ['nullable', 'string', 'max:255', 'url'],
+            'affiliate_count_api_url' => ['nullable', 'string', 'max:255', 'url'],
+            'advertiser_count_api_url' => ['nullable', 'string', 'max:255', 'url'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

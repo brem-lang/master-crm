@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Company;
 use App\Models\JobRun;
 use App\Models\User;
+use App\Services\CompanyDirectorySyncer;
 use App\Services\CompanyLeadsSyncer;
 use App\Support\CompanyHealth;
 use Illuminate\Http\RedirectResponse;
@@ -146,7 +147,21 @@ class CompanyController extends Controller
         AuditLog::record('company.updated', $company, Arr::except($company->getChanges(), ['api_key', 'updated_at']));
     }
 
-    public function pullData(Company $company, CompanyLeadsSyncer $syncer): RedirectResponse
+    /**
+     * @param  array{success: bool, pulled: int, message: string}  $result
+     */
+    private function recordJobRun(Company $company, array $result, string $triggeredBy): void
+    {
+        JobRun::create([
+            'company_id' => $company->id,
+            'triggered_by' => $triggeredBy,
+            'success' => $result['success'],
+            'pulled' => $result['pulled'],
+            'message' => $result['message'],
+        ]);
+    }
+
+    public function pullData(Company $company, CompanyLeadsSyncer $syncer, CompanyDirectorySyncer $directorySyncer): RedirectResponse
     {
         $this->authorize('update', $company);
 
@@ -158,13 +173,15 @@ class CompanyController extends Controller
 
         $result = $syncer->sync($company);
 
-        JobRun::create([
-            'company_id' => $company->id,
-            'triggered_by' => 'manual',
-            'success' => $result['success'],
-            'pulled' => $result['pulled'],
-            'message' => $result['message'],
-        ]);
+        $this->recordJobRun($company, $result, 'manual');
+
+        if (filled($company->affiliates_url)) {
+            $this->recordJobRun($company, $directorySyncer->syncAffiliates($company), 'manual');
+        }
+
+        if (filled($company->advertisers_url)) {
+            $this->recordJobRun($company, $directorySyncer->syncAdvertisers($company), 'manual');
+        }
 
         Inertia::flash('toast', [
             'type' => $result['success'] ? 'success' : 'error',

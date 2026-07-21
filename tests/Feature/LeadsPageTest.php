@@ -9,7 +9,7 @@ beforeEach(function () {
     $this->seed(RoleSeeder::class);
 });
 
-test('a child admin sees leads metrics scoped to only their own company', function () {
+test('a child admin sees leads metrics scoped to only their own company, excluding rejected', function () {
     $company = Company::factory()->create();
     $otherCompany = Company::factory()->create();
 
@@ -25,10 +25,10 @@ test('a child admin sees leads metrics scoped to only their own company', functi
     $response->assertOk();
     $props = $response->inertiaPage()['props'];
 
-    expect($props['total'])->toBe(3);
-    expect($props['rejected'])->toBe(2);
+    expect($props['total'])->toBe(1);
     expect($props['ftd'])->toBe(1);
-    expect($props['leads']['total'])->toBe(3);
+    expect($props['leads']['total'])->toBe(1);
+    expect($props)->not->toHaveKey('rejected');
     expect($props)->not->toHaveKey('companies');
 });
 
@@ -48,8 +48,8 @@ test('a parent admin sees leads across all companies with a company filter list'
     $companyA = Company::factory()->create(['name' => 'Company A']);
     $companyB = Company::factory()->create(['name' => 'Company B']);
 
-    Lead::factory()->count(2)->create(['company_id' => $companyA->id]);
-    Lead::factory()->count(3)->create(['company_id' => $companyB->id]);
+    Lead::factory()->count(2)->create(['company_id' => $companyA->id, 'status' => 'new']);
+    Lead::factory()->count(3)->create(['company_id' => $companyB->id, 'status' => 'new']);
 
     $parentAdmin = User::factory()->create();
     $parentAdmin->assignRole('parent-admin');
@@ -68,8 +68,8 @@ test('a parent admin can filter the leads page down to one company', function ()
     $companyA = Company::factory()->create();
     $companyB = Company::factory()->create();
 
-    Lead::factory()->count(2)->create(['company_id' => $companyA->id]);
-    Lead::factory()->count(3)->create(['company_id' => $companyB->id]);
+    Lead::factory()->count(2)->create(['company_id' => $companyA->id, 'status' => 'new']);
+    Lead::factory()->count(3)->create(['company_id' => $companyB->id, 'status' => 'new']);
 
     $parentAdmin = User::factory()->create();
     $parentAdmin->assignRole('parent-admin');
@@ -84,7 +84,7 @@ test('a parent admin can filter the leads page down to one company', function ()
 test('search and status filters narrow the leads list', function () {
     $company = Company::factory()->create();
 
-    Lead::factory()->create(['company_id' => $company->id, 'first_name' => 'Alice', 'status' => 'rejected']);
+    Lead::factory()->create(['company_id' => $company->id, 'first_name' => 'Alice', 'status' => 'new']);
     Lead::factory()->create(['company_id' => $company->id, 'first_name' => 'Bob', 'status' => 'contacted']);
 
     $childAdmin = User::factory()->create(['company_id' => $company->id]);

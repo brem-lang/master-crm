@@ -35,6 +35,10 @@ class CompanyUpdateRequest extends FormRequest
                 Rule::unique(Company::class, 'api_key')->ignore($this->route('company')?->id),
             ],
             'leads_count_url' => ['nullable', 'string', 'max:255', 'url'],
+            'affiliates_url' => ['nullable', 'string', 'max:255', 'url'],
+            'advertisers_url' => ['nullable', 'string', 'max:255', 'url'],
+            'affiliate_count_api_url' => ['nullable', 'string', 'max:255', 'url'],
+            'advertiser_count_api_url' => ['nullable', 'string', 'max:255', 'url'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import { ChevronRight } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import {
     Collapsible,
     CollapsibleContent,
@@ -48,9 +49,7 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
                                 <CollapsibleContent>
                                     <SidebarMenuSub>
                                         {item.items.map((sub) => (
-                                            <SidebarMenuSubItem
-                                                key={sub.title}
-                                            >
+                                            <SidebarMenuSubItem key={sub.title}>
                                                 <SidebarMenuSubButton
                                                     asChild
                                                     isActive={isCurrentUrl(
@@ -64,9 +63,7 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
                                                         {sub.icon && (
                                                             <sub.icon />
                                                         )}
-                                                        <span>
-                                                            {sub.title}
-                                                        </span>
+                                                        <span>{sub.title}</span>
                                                     </Link>
                                                 </SidebarMenuSubButton>
                                             </SidebarMenuSubItem>
@@ -85,6 +82,14 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
                                 <Link href={item.href} prefetch>
                                     {item.icon && <item.icon />}
                                     <span>{item.title}</span>
+                                    {!!item.badge && (
+                                        <Badge
+                                            variant="secondary"
+                                            className="ml-auto"
+                                        >
+                                            {item.badge}
+                                        </Badge>
+                                    )}
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
