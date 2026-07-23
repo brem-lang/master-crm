@@ -22,6 +22,7 @@ export type Company = {
     affiliate_count_api_url?: string | null;
     advertiser_count_api_url?: string | null;
     send_test_lead_url?: string | null;
+    release_ftd_url?: string | null;
     is_active?: boolean;
     users_count?: number;
     last_synced_at?: string | null;
@@ -59,6 +60,7 @@ export type Lead = {
     status: string | null;
     affiliate_name: string | null;
     is_ftd: boolean;
+    ftd_released: boolean;
     offer_name: string | null;
     meta: Record<string, unknown> | null;
     lead_created_at: string | null;

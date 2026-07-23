@@ -13,4 +13,5 @@ export type NavItem = {
     isActive?: boolean;
     items?: NavItem[];
     badge?: number;
+    badgeClassName?: string;
 };

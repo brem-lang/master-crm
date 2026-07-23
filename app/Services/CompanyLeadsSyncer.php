@@ -34,6 +34,7 @@ class CompanyLeadsSyncer
         'ip_address',
         'status',
         'is_ftd',
+        'ftd_released',
         'offer_name',
         'created_at',
     ];
@@ -192,6 +193,7 @@ class CompanyLeadsSyncer
             'status' => $item['status'] ?? null,
             'affiliate_name' => $item['affiliates']['name'] ?? null,
             'is_ftd' => (bool) ($item['is_ftd'] ?? false),
+            'ftd_released' => (bool) ($item['ftd_released'] ?? false),
             'offer_name' => $item['offer_name'] ?? null,
             'meta' => json_encode($meta),
             'lead_created_at' => $item['created_at'] ?? null,

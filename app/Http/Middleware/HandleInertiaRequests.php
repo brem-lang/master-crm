@@ -56,6 +56,13 @@ class HandleInertiaRequests extends Middleware
             'rejectedLeadsCount' => $companyScoped || $allCompanies
                 ? Lead::where('status', 'rejected')
                     ->when($companyScoped, fn ($query) => $query->where('company_id', $user->company_id))
+                    ->when($user->rejected_leads_viewed_at, fn ($query) => $query->where('updated_at', '>', $user->rejected_leads_viewed_at))
+                    ->count()
+                : null,
+            'pendingFtdCount' => $companyScoped || $allCompanies
+                ? Lead::where('is_ftd', true)
+                    ->where('ftd_released', false)
+                    ->when($companyScoped, fn ($query) => $query->where('company_id', $user->company_id))
                     ->count()
                 : null,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',

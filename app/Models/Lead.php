@@ -24,6 +24,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $status
  * @property string|null $affiliate_name
  * @property bool $is_ftd
+ * @property bool $ftd_released
  * @property string|null $offer_name
  * @property array<string, mixed>|null $meta
  * @property Carbon|null $lead_created_at
@@ -46,6 +47,7 @@ use Illuminate\Support\Carbon;
     'status',
     'affiliate_name',
     'is_ftd',
+    'ftd_released',
     'offer_name',
     'meta',
     'lead_created_at',
@@ -82,6 +84,7 @@ class Lead extends Model
     {
         return [
             'is_ftd' => 'boolean',
+            'ftd_released' => 'boolean',
             'meta' => 'array',
             'lead_created_at' => 'datetime',
             'synced_at' => 'datetime',

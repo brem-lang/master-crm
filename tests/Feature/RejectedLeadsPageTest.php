@@ -128,6 +128,48 @@ test('the shared rejectedLeadsCount prop is null for a user without leads access
     expect($response->inertiaPage()['props']['rejectedLeadsCount'])->toBeNull();
 });
 
+test('visiting the rejected leads page stamps rejected_leads_viewed_at and zeroes the badge', function () {
+    $company = Company::factory()->create();
+    Lead::factory()->count(3)->create(['company_id' => $company->id, 'status' => 'rejected']);
+
+    $childAdmin = User::factory()->create(['company_id' => $company->id]);
+    $childAdmin->assignRole('child-admin');
+
+    expect($childAdmin->rejected_leads_viewed_at)->toBeNull();
+
+    $response = $this->actingAs($childAdmin)->get(route('dashboard'));
+    expect($response->inertiaPage()['props']['rejectedLeadsCount'])->toBe(3);
+
+    $this->actingAs($childAdmin)->get(route('leads.rejected'));
+
+    $childAdmin->refresh();
+    expect($childAdmin->rejected_leads_viewed_at)->not->toBeNull();
+
+    $response = $this->actingAs($childAdmin)->get(route('dashboard'));
+    expect($response->inertiaPage()['props']['rejectedLeadsCount'])->toBe(0);
+});
+
+test('the badge only counts rejected leads updated after the last visit, not the running total', function () {
+    $company = Company::factory()->create();
+    Lead::factory()->count(3)->create(['company_id' => $company->id, 'status' => 'rejected']);
+
+    $childAdmin = User::factory()->create(['company_id' => $company->id]);
+    $childAdmin->assignRole('child-admin');
+
+    $this->actingAs($childAdmin)->get(route('leads.rejected'));
+    $childAdmin->refresh();
+
+    // Clear time gap so this lead's timestamp is unambiguously after the visit.
+    $this->travel(1)->minute();
+
+    Lead::factory()->create(['company_id' => $company->id, 'status' => 'rejected']);
+
+    $response = $this->actingAs($childAdmin)->get(route('dashboard'));
+
+    // The newly-rejected lead counts; the 3 already-seen ones must not be recounted.
+    expect($response->inertiaPage()['props']['rejectedLeadsCount'])->toBe(1);
+});
+
 test('a non-rejected lead never appears on the rejected leads page', function () {
     $company = Company::factory()->create();
 

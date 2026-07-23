@@ -29,6 +29,7 @@ class RoleSeeder extends Seeder
         $manageOwnCompany = Permission::firstOrCreate(['name' => 'manage-own-company']);
         $assignLeads = Permission::firstOrCreate(['name' => 'assign-leads']);
         $sendTestLeads = Permission::firstOrCreate(['name' => 'send-test-leads']);
+        $releaseFtd = Permission::firstOrCreate(['name' => 'release-ftd']);
 
         Role::firstOrCreate(['name' => 'parent-admin'])
             ->syncPermissions([
@@ -41,10 +42,11 @@ class RoleSeeder extends Seeder
                 $manageSettings,
                 $assignLeads,
                 $sendTestLeads,
+                $releaseFtd,
             ]);
 
         Role::firstOrCreate(['name' => 'child-admin'])
-            ->syncPermissions([$manageUsers, $impersonateUsers, $viewCompanyCustomers, $viewReports, $manageOwnCompany, $assignLeads, $sendTestLeads]);
+            ->syncPermissions([$manageUsers, $impersonateUsers, $viewCompanyCustomers, $viewReports, $manageOwnCompany, $assignLeads, $sendTestLeads, $releaseFtd]);
 
         Role::firstOrCreate(['name' => 'sales-rep'])
             ->syncPermissions([$manageLeads, $logActivities]);

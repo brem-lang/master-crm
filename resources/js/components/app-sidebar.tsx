@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     Activity,
+    BadgeCheck,
     Building2,
     ClipboardList,
     Handshake,
@@ -38,6 +39,7 @@ import { index as companyHealthIndex } from '@/routes/company-health';
 import { index as directoryIndex } from '@/routes/directory';
 import { index as jobsIndex } from '@/routes/jobs';
 import {
+    conversions as conversionsIndex,
     index as leadsIndex,
     leaderboard as leaderboardIndex,
     rejected as rejectedLeadsIndex,
@@ -48,9 +50,10 @@ import { index as usersIndex } from '@/routes/users';
 import type { Auth, NavItem } from '@/types';
 
 export function AppSidebar() {
-    const { auth, rejectedLeadsCount } = usePage<{
+    const { auth, rejectedLeadsCount, pendingFtdCount } = usePage<{
         auth: Auth;
         rejectedLeadsCount: number | null;
+        pendingFtdCount: number | null;
     }>().props;
 
     const settingsItems: NavItem[] = [
@@ -106,6 +109,14 @@ export function AppSidebar() {
                       href: rejectedLeadsIndex(),
                       icon: UserRoundX,
                       badge: rejectedLeadsCount ?? undefined,
+                  },
+                  {
+                      title: 'Conversions (FTD)',
+                      href: conversionsIndex(),
+                      icon: BadgeCheck,
+                      badge: pendingFtdCount ?? undefined,
+                      badgeClassName:
+                          'border-transparent bg-yellow-500 text-white dark:bg-yellow-600',
                   },
                   {
                       title: 'Affiliates',

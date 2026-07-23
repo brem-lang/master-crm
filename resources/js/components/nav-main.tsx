@@ -17,6 +17,7 @@ import {
     SidebarMenuSubItem,
 } from '@/components/ui/sidebar';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { cn } from '@/lib/utils';
 import type { NavItem } from '@/types';
 
 export function NavMain({ items = [] }: { items: NavItem[] }) {
@@ -82,10 +83,17 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
                                 <Link href={item.href} prefetch>
                                     {item.icon && <item.icon />}
                                     <span>{item.title}</span>
-                                    {!!item.badge && (
+                                    {item.badge !== undefined && (
                                         <Badge
-                                            variant="secondary"
-                                            className="ml-auto"
+                                            variant={
+                                                item.badgeClassName
+                                                    ? 'outline'
+                                                    : 'destructive'
+                                            }
+                                            className={cn(
+                                                'ml-auto',
+                                                item.badgeClassName,
+                                            )}
                                         >
                                             {item.badge}
                                         </Badge>

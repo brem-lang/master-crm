@@ -87,6 +87,41 @@ class ChildCrmDirectoryClient
     }
 
     /**
+     * Notifies the child CRM that one of its leads' FTD has been released.
+     * Same non-throwing shape as `sendTestLead()` — the child API's own
+     * message is what the admin needs to see on failure, not a generic one.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function releaseFtd(Company $company, array $payload): array
+    {
+        if (blank($company->release_ftd_url)) {
+            return [
+                'status' => 422,
+                'body' => ['success' => false, 'message' => "No release-FTD API URL is configured for {$company->name}."],
+            ];
+        }
+
+        try {
+            $response = $this->postJson($company, $company->release_ftd_url, $payload);
+        } catch (ChildCrmSyncException $e) {
+            return ['status' => 502, 'body' => ['success' => false, 'message' => $e->getMessage()]];
+        }
+
+        $body = $response->json();
+
+        if (! is_array($body)) {
+            return [
+                'status' => 502,
+                'body' => ['success' => false, 'message' => "{$company->name}'s API returned an unreadable response."],
+            ];
+        }
+
+        return ['status' => $response->status(), 'body' => $body];
+    }
+
+    /**
      * @throws ChildCrmSyncException
      */
     private function fetchCount(Company $company, ?string $url, string $missingUrlMessage, string $countKey): int

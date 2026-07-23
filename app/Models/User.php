@@ -29,6 +29,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
  * @property string|null $remember_token
+ * @property Carbon|null $rejected_leads_viewed_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -59,6 +60,7 @@ class User extends Authenticatable implements PasskeyUser
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'is_active' => 'boolean',
+            'rejected_leads_viewed_at' => 'datetime',
         ];
     }
 

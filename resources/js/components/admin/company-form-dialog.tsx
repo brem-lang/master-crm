@@ -146,6 +146,22 @@ export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
                             </div>
 
                             <div className="grid gap-2">
+                                <Label htmlFor="release_ftd_url">
+                                    Release FTD API URL
+                                </Label>
+                                <Input
+                                    id="release_ftd_url"
+                                    name="release_ftd_url"
+                                    type="url"
+                                    defaultValue={
+                                        company?.release_ftd_url ?? ''
+                                    }
+                                    placeholder="https://child-crm.example.com/api/release-ftd"
+                                />
+                                <InputError message={errors.release_ftd_url} />
+                            </div>
+
+                            <div className="grid gap-2">
                                 <Label htmlFor="api_key">API Key</Label>
                                 <Input
                                     id="api_key"
