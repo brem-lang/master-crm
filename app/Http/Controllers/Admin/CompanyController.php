@@ -148,7 +148,7 @@ class CompanyController extends Controller
     }
 
     /**
-     * @param  array{success: bool, pulled: int, message: string}  $result
+     * @param  array{success: bool, pulled: int, deleted: int, message: string}  $result
      */
     private function recordJobRun(Company $company, array $result, string $triggeredBy): void
     {
@@ -157,6 +157,7 @@ class CompanyController extends Controller
             'triggered_by' => $triggeredBy,
             'success' => $result['success'],
             'pulled' => $result['pulled'],
+            'deleted' => $result['deleted'] ?? 0,
             'message' => $result['message'],
         ]);
     }

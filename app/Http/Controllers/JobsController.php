@@ -26,7 +26,8 @@ class JobsController extends Controller
                 count(*) as total,
                 sum(case when success = 1 then 1 else 0 end) as successful,
                 sum(case when success = 0 then 1 else 0 end) as failed,
-                sum(pulled) as pulled
+                sum(pulled) as pulled,
+                sum(deleted) as deleted
             ')
             ->first();
 
@@ -36,6 +37,7 @@ class JobsController extends Controller
                 'successful' => (int) $stats->successful,
                 'failed' => (int) $stats->failed,
                 'pulled' => (int) $stats->pulled,
+                'deleted' => (int) $stats->deleted,
             ],
             'runs' => $scoped()
                 ->with('company:id,name')

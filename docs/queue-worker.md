@@ -6,39 +6,48 @@ queue (`QUEUE_CONNECTION=database` by default — see `.env.example`). Laravel's
 scheduler only *enqueues* these jobs; something still has to consume the
 queue, or dispatched jobs just sit in the `jobs` table forever.
 
-Two ways to run that consumer, pick whichever matches how this app is hosted:
+## Systemd (plain VPS, no Forge)
 
-## Option A — Laravel Forge
+`deploy/systemd/master-crm-queue-worker@.service` is a systemd **template**
+unit (the `@` before `.service`) — one file that can run as one worker or
+several concurrent ones, since each instance is independent.
 
-Forge → your site → **Queue** tab → **New Worker**:
-
-- Connection: `database`
-- Queue: `default`
-- Max Tries: `3` (matches `PullCompanyLeadsJob::$tries`)
-- Timeout: `300` or higher (matches `PullCompanyLeadsJob::$timeout`)
-
-Forge supervises the worker itself (auto-restart on crash/deploy) — no file
-in this repo is needed for that path.
-
-## Option B — plain VPS (systemd)
-
-Use `deploy/systemd/master-crm-queue-worker.service` as a template:
+First, edit the `User`, `Group`, `WorkingDirectory`, and `ExecStart` path
+placeholders in the file to match the actual deploy user and path. Then:
 
 ```bash
-sudo cp deploy/systemd/master-crm-queue-worker.service /etc/systemd/system/
+sudo cp "deploy/systemd/master-crm-queue-worker@.service" /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now master-crm-queue-worker
+sudo systemctl enable --now master-crm-queue-worker@1
 ```
 
-Update the `User`, `ExecStart`, and `WorkingDirectory` paths in the unit file
-to match the actual deploy user and path first.
+### Running more than one worker (recommended once you have ~20 companies)
+
+With a single worker, companies are processed one at a time from the queue —
+a single slow or hanging child-CRM API call (each `PullCompanyLeadsJob` has a
+300s timeout) can hold up every other company behind it until it finishes.
+Running several workers lets companies sync in parallel instead. This is safe
+to do without any code change — each `PullCompanyLeadsJob` is
+`ShouldBeUnique` per company, so multiple workers can never double-process
+the same company; they simply pick up different companies' jobs concurrently.
+
+Enable as many instances as you want workers, e.g. 3:
+
+```bash
+sudo systemctl enable --now master-crm-queue-worker@1
+sudo systemctl enable --now master-crm-queue-worker@2
+sudo systemctl enable --now master-crm-queue-worker@3
+```
+
+Check they're all running: `systemctl status "master-crm-queue-worker@*"`.
 
 ## Either way
 
 - The scheduler itself (`Schedule::job(...)->everyFiveMinutes()`) still needs
-  its own cron entry: `* * * * * php /path/to/artisan schedule:run >> /dev/null 2>&1`
-  — Forge's "Scheduler" toggle does this automatically; on a plain VPS it
-  needs to be added to the deploy user's crontab.
-- After deploying new code, restart the worker (`php artisan queue:restart`,
-  or Forge's worker restart button) — running workers keep old code in memory
-  until restarted.
+  its own cron entry in the deploy user's crontab:
+  `* * * * * php /path/to/artisan schedule:run >> /dev/null 2>&1`
+- After deploying new code, restart the workers so they pick up the new code
+  (`php artisan queue:restart` signals all running workers to finish their
+  current job and exit; systemd's `Restart=always` immediately brings them
+  back up running the freshly-deployed code) — a running worker otherwise
+  keeps old code in memory indefinitely.

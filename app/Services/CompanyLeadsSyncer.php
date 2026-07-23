@@ -43,7 +43,7 @@ class CompanyLeadsSyncer
     /**
      * Pull a company's leads from its child CRM, upserting into `leads`.
      *
-     * @return array{success: bool, pulled: int, message: string}
+     * @return array{success: bool, pulled: int, deleted: int, message: string}
      */
     public function sync(Company $company): array
     {
@@ -53,48 +53,18 @@ class CompanyLeadsSyncer
         // ignore it and do a full re-pull rather than only fetching what's "new" since it.
         $since = $localCount > 0 ? $company->last_synced_since?->toIso8601String() : null;
 
-        // Prefer the company's dedicated, lightweight count endpoint when configured —
-        // it settles "is anything new" without ever paying for a full get-leads call.
-        // Companies that haven't set one up yet fall back to `all_leads_count` off the
-        // first leads page instead (see below).
-        if (filled($company->leads_count_url)) {
-            try {
-                $remoteCount = $this->client->fetchLeadCount($company);
-            } catch (ChildCrmSyncException $e) {
-                return ['success' => false, 'pulled' => 0, 'message' => $e->getMessage()];
-            }
-
-            if ($remoteCount === $localCount) {
-                $company->update(['last_synced_at' => now()]);
-
-                return [
-                    'success' => true,
-                    'pulled' => 0,
-                    'message' => "{$company->name} is already up to date — no new leads.",
-                ];
-            }
-        }
-
         try {
             $first = $this->client->fetchPage($company, 0, self::LIMIT, $since);
         } catch (ChildCrmSyncException $e) {
-            return ['success' => false, 'pulled' => 0, 'message' => $e->getMessage()];
+            return ['success' => false, 'pulled' => 0, 'deleted' => 0, 'message' => $e->getMessage()];
         }
 
-        if (
-            blank($company->leads_count_url)
-            && array_key_exists('all_leads_count', $first)
-            && $first['all_leads_count'] === $localCount
-        ) {
-            $company->update(['last_synced_at' => now()]);
-
-            return [
-                'success' => true,
-                'pulled' => 0,
-                'message' => "{$company->name} is already up to date — no new leads.",
-            ];
-        }
-
+        // Total-count comparisons (e.g. `all_leads_count`) can't tell an in-place status
+        // update from "nothing changed" — the same count of records could still mean one
+        // was edited. Page 0's actual `data` (filtered server-side by `since`) is the only
+        // reliable signal, so it's always fetched and always processed below; an empty
+        // `data` here is what genuinely means "up to date", handled by the loop's own
+        // empty-page break rather than a separate early return.
         $totalPages = $first['pages'] ?? 1;
         $pages = min($totalPages, self::MAX_PAGES);
 
@@ -103,6 +73,7 @@ class CompanyLeadsSyncer
         }
 
         $pulled = 0;
+        $deleted = 0;
         $skipped = 0;
 
         try {
@@ -116,10 +87,20 @@ class CompanyLeadsSyncer
                 }
 
                 $rows = [];
+                $deletedIds = [];
 
                 foreach ($items as $item) {
                     if (blank($item['id'] ?? null)) {
                         $skipped++;
+
+                        continue;
+                    }
+
+                    // The child CRM soft-deletes — a record carrying `deleted_at` still
+                    // surfaces here (so the deletion isn't missed), but should be removed
+                    // locally rather than upserted.
+                    if (filled($item['deleted_at'] ?? null)) {
+                        $deletedIds[] = $item['id'];
 
                         continue;
                     }
@@ -133,6 +114,10 @@ class CompanyLeadsSyncer
                 // that re-touch.
                 $pulled += $this->bulkUpsert(Lead::class, $company, $rows);
 
+                if ($deletedIds !== []) {
+                    $deleted += Lead::where('company_id', $company->id)->whereIn('external_id', $deletedIds)->delete();
+                }
+
                 // Persist the resume point after every page, not just once at the
                 // end — if the job gets killed by its timeout mid-sync, the next
                 // run resumes from here instead of re-pulling from scratch.
@@ -145,7 +130,7 @@ class CompanyLeadsSyncer
             // Partial progress from earlier pages in this run is already saved
             // (each upsert commits independently), so report what went wrong
             // rather than losing that work behind an uncaught exception.
-            return ['success' => false, 'pulled' => $pulled, 'message' => $e->getMessage()];
+            return ['success' => false, 'pulled' => $pulled, 'deleted' => $deleted, 'message' => $e->getMessage()];
         }
 
         if ($skipped > 0) {
@@ -161,12 +146,28 @@ class CompanyLeadsSyncer
         return [
             'success' => true,
             'pulled' => $pulled,
-            'message' => trans_choice(
-                '{0} No new leads from :name.|{1} Pulled :count new lead from :name.|[2,*] Pulled :count new leads from :name.',
-                $pulled,
-                ['count' => $pulled, 'name' => $company->name],
-            ),
+            'deleted' => $deleted,
+            'message' => $this->summarizeSync($company->name, $pulled, $deleted),
         ];
+    }
+
+    private function summarizeSync(string $companyName, int $pulled, int $deleted): string
+    {
+        $pulledMessage = trans_choice(
+            '{0} No new leads from :name.|{1} Pulled :count new lead from :name.|[2,*] Pulled :count new leads from :name.',
+            $pulled,
+            ['count' => $pulled, 'name' => $companyName],
+        );
+
+        if ($deleted === 0) {
+            return $pulledMessage;
+        }
+
+        return $pulledMessage.' '.trans_choice(
+            '{1} Removed :count deleted lead.|[2,*] Removed :count deleted leads.',
+            $deleted,
+            ['count' => $deleted],
+        );
     }
 
     /**

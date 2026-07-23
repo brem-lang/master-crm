@@ -100,7 +100,7 @@ test('search and status filters narrow the affiliates list', function () {
     expect($affiliates[0]['name'])->toBe('Bob Affiliate');
 });
 
-test('the affiliates page never exposes api_key to the frontend', function () {
+test('the affiliates page deliberately exposes the decrypted api_key to admins who can view it', function () {
     $company = Company::factory()->create();
     Affiliate::factory()->create(['company_id' => $company->id, 'api_key' => 'super-secret-key']);
 
@@ -110,7 +110,17 @@ test('the affiliates page never exposes api_key to the frontend', function () {
     $response = $this->actingAs($childAdmin)->get(route('affiliates.index'));
     $affiliate = $response->inertiaPage()['props']['affiliates']['data'][0];
 
-    expect($affiliate)->not->toHaveKey('api_key');
+    expect($affiliate['api_key'])->toBe('super-secret-key');
+});
+
+test('a sales rep never even reaches the affiliates page, so never sees api_key', function () {
+    $company = Company::factory()->create();
+    Affiliate::factory()->create(['company_id' => $company->id, 'api_key' => 'super-secret-key']);
+
+    $salesRep = User::factory()->create(['company_id' => $company->id]);
+    $salesRep->assignRole('sales-rep');
+
+    $this->actingAs($salesRep)->get(route('affiliates.index'))->assertForbidden();
 });
 
 test('a child admin sees advertisers scoped to only their own company', function () {

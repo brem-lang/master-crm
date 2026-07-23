@@ -30,43 +30,37 @@ class CompanyDirectorySyncer
     public function __construct(private readonly ChildCrmDirectoryClient $client) {}
 
     /**
-     * @return array{success: bool, pulled: int, message: string}
+     * @return array{success: bool, pulled: int, deleted: int, message: string}
      */
     public function syncAffiliates(Company $company): array
     {
         return $this->sync(
             company: $company,
             urlField: 'affiliates_url',
-            countUrlField: 'affiliate_count_api_url',
             sinceField: 'affiliates_last_synced_since',
             cursorField: 'affiliates_last_synced_cursor',
             lastSyncedAtField: 'affiliates_last_synced_at',
-            allCountKey: 'all_affiliates_count',
             entityLabel: 'affiliates',
             model: Affiliate::class,
             fetchPage: fn (Company $c, int $page, int $limit, ?string $since) => $this->client->fetchAffiliatesPage($c, $page, $limit, $since),
-            fetchCount: fn (Company $c) => $this->client->fetchAffiliateCount($c),
             mapItem: fn (array $item) => $this->mapAffiliate($item),
         );
     }
 
     /**
-     * @return array{success: bool, pulled: int, message: string}
+     * @return array{success: bool, pulled: int, deleted: int, message: string}
      */
     public function syncAdvertisers(Company $company): array
     {
         return $this->sync(
             company: $company,
             urlField: 'advertisers_url',
-            countUrlField: 'advertiser_count_api_url',
             sinceField: 'advertisers_last_synced_since',
             cursorField: 'advertisers_last_synced_cursor',
             lastSyncedAtField: 'advertisers_last_synced_at',
-            allCountKey: 'all_advertisers_count',
             entityLabel: 'advertisers',
             model: Advertiser::class,
             fetchPage: fn (Company $c, int $page, int $limit, ?string $since) => $this->client->fetchAdvertisersPage($c, $page, $limit, $since),
-            fetchCount: fn (Company $c) => $this->client->fetchAdvertiserCount($c),
             mapItem: fn (array $item) => $this->mapAdvertiser($item),
         );
     }
@@ -77,73 +71,39 @@ class CompanyDirectorySyncer
      *
      * @param  class-string<Affiliate|Advertiser>  $model
      * @param  callable(Company, int, int, ?string): array<string, mixed>  $fetchPage
-     * @param  callable(Company): int  $fetchCount
      * @param  callable(array<string, mixed>): array<string, mixed>  $mapItem
-     * @return array{success: bool, pulled: int, message: string}
+     * @return array{success: bool, pulled: int, deleted: int, message: string}
      */
     private function sync(
         Company $company,
         string $urlField,
-        string $countUrlField,
         string $sinceField,
         string $cursorField,
         string $lastSyncedAtField,
-        string $allCountKey,
         string $entityLabel,
         string $model,
         callable $fetchPage,
-        callable $fetchCount,
         callable $mapItem,
     ): array {
         if (blank($company->{$urlField})) {
-            return ['success' => true, 'pulled' => 0, 'message' => "No {$entityLabel} API URL configured for {$company->name}."];
+            return ['success' => true, 'pulled' => 0, 'deleted' => 0, 'message' => "No {$entityLabel} API URL configured for {$company->name}."];
         }
 
         $localCount = $model::where('company_id', $company->id)->count();
         $since = $localCount > 0 ? $company->{$sinceField}?->toIso8601String() : null;
 
-        // Prefer the company's dedicated, lightweight count endpoint when configured —
-        // it settles "is anything new" without ever paying for a full paginated pull.
-        // Companies that haven't set one up yet fall back to `$allCountKey` off the
-        // first page instead (see below).
-        if (filled($company->{$countUrlField})) {
-            try {
-                $remoteCount = $fetchCount($company);
-            } catch (ChildCrmSyncException $e) {
-                return ['success' => false, 'pulled' => 0, 'message' => $e->getMessage()];
-            }
-
-            if ($remoteCount === $localCount) {
-                $company->update([$lastSyncedAtField => now()]);
-
-                return [
-                    'success' => true,
-                    'pulled' => 0,
-                    'message' => "No new {$entityLabel} from {$company->name}.",
-                ];
-            }
-        }
-
         try {
             $first = $fetchPage($company, 0, self::LIMIT, $since);
         } catch (ChildCrmSyncException $e) {
-            return ['success' => false, 'pulled' => 0, 'message' => $e->getMessage()];
+            return ['success' => false, 'pulled' => 0, 'deleted' => 0, 'message' => $e->getMessage()];
         }
 
-        if (
-            blank($company->{$countUrlField})
-            && array_key_exists($allCountKey, $first)
-            && $first[$allCountKey] === $localCount
-        ) {
-            $company->update([$lastSyncedAtField => now()]);
-
-            return [
-                'success' => true,
-                'pulled' => 0,
-                'message' => "No new {$entityLabel} from {$company->name}.",
-            ];
-        }
-
+        // A total-count comparison can't tell an in-place status update from "nothing
+        // changed" — the same count of records could still mean one was edited. Page 0's
+        // actual `data` (filtered server-side by `since`) is the only reliable signal, so
+        // it's always fetched and always processed below; an empty `data` here is what
+        // genuinely means "up to date", handled by the loop's own empty-page break rather
+        // than a separate early return.
         $totalPages = $first['pages'] ?? 1;
         $pages = min($totalPages, self::MAX_PAGES);
 
@@ -152,6 +112,7 @@ class CompanyDirectorySyncer
         }
 
         $pulled = 0;
+        $deleted = 0;
         $skipped = 0;
 
         try {
@@ -165,10 +126,20 @@ class CompanyDirectorySyncer
                 }
 
                 $rows = [];
+                $deletedIds = [];
 
                 foreach ($items as $item) {
                     if (blank($item['id'] ?? null)) {
                         $skipped++;
+
+                        continue;
+                    }
+
+                    // The child CRM soft-deletes — a record carrying `deleted_at` still
+                    // surfaces here (so the deletion isn't missed), but should be removed
+                    // locally rather than upserted.
+                    if (filled($item['deleted_at'] ?? null)) {
+                        $deletedIds[] = $item['id'];
 
                         continue;
                     }
@@ -182,6 +153,10 @@ class CompanyDirectorySyncer
                 // that re-touch.
                 $pulled += $this->bulkUpsert($model, $company, $rows);
 
+                if ($deletedIds !== []) {
+                    $deleted += $model::where('company_id', $company->id)->whereIn('external_id', $deletedIds)->delete();
+                }
+
                 // Persist the resume point after every page, not just once at the
                 // end — if the job gets killed by its timeout mid-sync, the next
                 // run resumes from here instead of re-pulling from scratch.
@@ -191,7 +166,7 @@ class CompanyDirectorySyncer
                 ]);
             }
         } catch (ChildCrmSyncException $e) {
-            return ['success' => false, 'pulled' => $pulled, 'message' => $e->getMessage()];
+            return ['success' => false, 'pulled' => $pulled, 'deleted' => $deleted, 'message' => $e->getMessage()];
         }
 
         if ($skipped > 0) {
@@ -203,12 +178,28 @@ class CompanyDirectorySyncer
         return [
             'success' => true,
             'pulled' => $pulled,
-            'message' => trans_choice(
-                '{0} No new '.$entityLabel.' from :name.|{1} Pulled :count new '.rtrim($entityLabel, 's').' from :name.|[2,*] Pulled :count new '.$entityLabel.' from :name.',
-                $pulled,
-                ['count' => $pulled, 'name' => $company->name],
-            ),
+            'deleted' => $deleted,
+            'message' => $this->summarizeSync($company->name, $entityLabel, $pulled, $deleted),
         ];
+    }
+
+    private function summarizeSync(string $companyName, string $entityLabel, int $pulled, int $deleted): string
+    {
+        $pulledMessage = trans_choice(
+            '{0} No new '.$entityLabel.' from :name.|{1} Pulled :count new '.rtrim($entityLabel, 's').' from :name.|[2,*] Pulled :count new '.$entityLabel.' from :name.',
+            $pulled,
+            ['count' => $pulled, 'name' => $companyName],
+        );
+
+        if ($deleted === 0) {
+            return $pulledMessage;
+        }
+
+        return $pulledMessage.' '.trans_choice(
+            '{1} Removed :count deleted '.rtrim($entityLabel, 's').'.|[2,*] Removed :count deleted '.$entityLabel.'.',
+            $deleted,
+            ['count' => $deleted],
+        );
     }
 
     /**

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Company;
+use App\Models\JobRun;
 use App\Models\Lead;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -117,7 +118,7 @@ test('re-pulling when all_leads_count matches the local count makes exactly one 
     expect(Lead::where('company_id', $company->id)->count())->toBe(2);
 });
 
-test('when leads_count_url is set and matches the local count, get-leads is never called', function () {
+test('leads_count_url is no longer consulted — get-leads is always called even when the count matches', function () {
     $company = Company::factory()->create([
         'api_url' => 'https://example.com/functions/v1/get-leads',
         'leads_count_url' => 'https://example.com/functions/v1/leads-count',
@@ -125,47 +126,15 @@ test('when leads_count_url is set and matches the local count, get-leads is neve
     Lead::factory()->count(2)->create(['company_id' => $company->id, 'synced_to_parent_at' => now()]);
 
     Http::fake([
-        'https://example.com/functions/v1/leads-count*' => Http::response([
-            'success' => true,
-            'total_leads' => 2,
-        ]),
-    ]);
-
-    $parentAdmin = User::factory()->create();
-    $parentAdmin->assignRole('parent-admin');
-
-    $response = $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
-
-    $response->assertRedirect(route('companies.index'));
-    $response->assertInertiaFlash('toast.type', 'success');
-
-    // Only the lightweight count endpoint was hit — get-leads was never called.
-    Http::assertSentCount(1);
-    Http::assertSent(fn ($request) => str_contains($request->url(), 'leads-count'));
-    expect(Lead::where('company_id', $company->id)->count())->toBe(2);
-});
-
-test('when leads_count_url is set and differs, a full pull happens using get-leads', function () {
-    $company = Company::factory()->create([
-        'api_url' => 'https://example.com/functions/v1/get-leads',
-        'leads_count_url' => 'https://example.com/functions/v1/leads-count',
-    ]);
-    Lead::factory()->count(1)->create(['company_id' => $company->id, 'synced_to_parent_at' => now()]);
-
-    Http::fake([
-        'https://example.com/functions/v1/leads-count*' => Http::response([
-            'success' => true,
-            'total_leads' => 2,
-        ]),
         'https://example.com/functions/v1/get-leads*' => Http::response([
             'success' => true,
             'total' => 2,
             'all_leads_count' => 2,
             'page' => 0,
             'pages' => 1,
-            'next_cursor' => 'id-1',
-            'next_since' => '2026-07-01T00:00:00Z',
-            'data' => [leadPayload('id-1', '2026-07-01T00:00:00Z')],
+            'next_cursor' => null,
+            'next_since' => null,
+            'data' => [],
         ]),
     ]);
 
@@ -177,7 +146,49 @@ test('when leads_count_url is set and differs, a full pull happens using get-lea
     $response->assertRedirect(route('companies.index'));
     $response->assertInertiaFlash('toast.type', 'success');
 
-    Http::assertSentCount(2);
+    // The count endpoint is never hit — a total-count match can't tell an in-place
+    // status update from "nothing changed", so get-leads is the only thing checked.
+    Http::assertSentCount(1);
+    Http::assertSent(fn ($request) => str_contains($request->url(), 'get-leads'));
+    expect(Lead::where('company_id', $company->id)->count())->toBe(2);
+});
+
+test('an in-place status update on an already-known lead is pulled even though the total count is unchanged', function () {
+    $company = Company::factory()->create([
+        'api_url' => 'https://example.com/functions/v1/get-leads',
+        'leads_count_url' => 'https://example.com/functions/v1/leads-count',
+        'last_synced_since' => now()->subDay(),
+    ]);
+    Lead::factory()->create([
+        'company_id' => $company->id,
+        'external_id' => 'id-1',
+        'status' => 'new',
+        'synced_to_parent_at' => now(),
+    ]);
+
+    $updatedLeadPayload = [...leadPayload('id-1', '2026-07-01T00:00:00Z'), 'status' => 'rejected'];
+
+    Http::fake([
+        // Same total count as local (1) — the old count-based short-circuit would have
+        // stopped here without ever seeing the status change below.
+        'https://example.com/functions/v1/get-leads*' => Http::response([
+            'success' => true,
+            'total' => 1,
+            'all_leads_count' => 1,
+            'page' => 0,
+            'pages' => 1,
+            'next_cursor' => 'id-1',
+            'next_since' => '2026-07-02T00:00:00Z',
+            'data' => [$updatedLeadPayload],
+        ]),
+    ]);
+
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
+
+    expect(Lead::where('external_id', 'id-1')->first()->status)->toBe('rejected');
 });
 
 test('an inclusive since boundary re-fetching an already-known lead is not miscounted as new', function () {
@@ -222,14 +233,17 @@ test('an inclusive since boundary re-fetching an already-known lead is not misco
     expect(Lead::where('company_id', $company->id)->count())->toBe(2);
 });
 
-test('a leads_count_url failure produces a friendly error and never calls get-leads', function () {
+test('a leads_count_url is set but no longer consulted — get-leads is still the source of truth', function () {
     $company = Company::factory()->create([
         'api_url' => 'https://example.com/functions/v1/get-leads',
         'leads_count_url' => 'https://example.com/functions/v1/leads-count',
     ]);
 
     Http::fake([
-        'https://example.com/functions/v1/leads-count*' => Http::response(null, 500),
+        'https://example.com/functions/v1/get-leads*' => Http::response([
+            'success' => true, 'total' => 0, 'all_leads_count' => 0, 'page' => 0, 'pages' => 1,
+            'next_cursor' => null, 'next_since' => null, 'data' => [],
+        ]),
     ]);
 
     $parentAdmin = User::factory()->create();
@@ -238,11 +252,12 @@ test('a leads_count_url failure produces a friendly error and never calls get-le
     $response = $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
 
     $response->assertRedirect(route('companies.index'));
-    $response->assertInertiaFlash('toast.type', 'error');
+    $response->assertInertiaFlash('toast.type', 'success');
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), 'leads-count'));
     Http::assertSentCount(1);
 });
 
-test('without leads_count_url, the old all_leads_count fallback still works', function () {
+test('the all_leads_count field on the response is no longer used to short-circuit a pull', function () {
     $company = Company::factory()->create([
         'api_url' => 'https://example.com/functions/v1/get-leads',
         'leads_count_url' => null,
@@ -468,4 +483,86 @@ test('a child admin cannot pull leads for another company', function () {
     $response = $this->actingAs($childAdmin)->post(route('companies.pull-data', $otherCompany));
 
     $response->assertForbidden();
+});
+
+test('a soft-deleted lead from the child CRM is removed locally', function () {
+    $company = Company::factory()->create(['api_url' => 'https://example.com/functions/v1/get-leads']);
+    Lead::factory()->create(['company_id' => $company->id, 'external_id' => 'id-deleted']);
+    Lead::factory()->create(['company_id' => $company->id, 'external_id' => 'id-kept']);
+
+    $deletedPayload = [...leadPayload('id-deleted', '2026-07-01T00:00:00Z'), 'deleted_at' => '2026-07-22T20:13:47.161871+00:00'];
+    $keptPayload = leadPayload('id-kept', '2026-07-01T00:00:00Z');
+
+    Http::fake([
+        'https://example.com/functions/v1/get-leads*' => Http::response([
+            'success' => true,
+            'total' => 2,
+            'all_leads_count' => 2,
+            'page' => 0,
+            'pages' => 1,
+            'next_cursor' => 'id-kept',
+            'next_since' => '2026-07-22T20:13:47.161871+00:00',
+            'data' => [$deletedPayload, $keptPayload],
+        ]),
+    ]);
+
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $response = $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
+
+    $response->assertInertiaFlash('toast.type', 'success');
+    expect(Lead::where('external_id', 'id-deleted')->exists())->toBeFalse();
+    expect(Lead::where('external_id', 'id-kept')->exists())->toBeTrue();
+});
+
+test('a deletion is reported on the JobRun row', function () {
+    $company = Company::factory()->create(['api_url' => 'https://example.com/functions/v1/get-leads']);
+    Lead::factory()->create(['company_id' => $company->id, 'external_id' => 'id-deleted']);
+
+    Http::fake([
+        'https://example.com/functions/v1/get-leads*' => Http::response([
+            'success' => true,
+            'total' => 1,
+            'all_leads_count' => 1,
+            'page' => 0,
+            'pages' => 1,
+            'next_cursor' => null,
+            'next_since' => null,
+            'data' => [[...leadPayload('id-deleted', '2026-07-01T00:00:00Z'), 'deleted_at' => now()->toIso8601String()]],
+        ]),
+    ]);
+
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
+
+    $jobRun = JobRun::where('company_id', $company->id)->orderByDesc('id')->first();
+    expect($jobRun->deleted)->toBe(1);
+});
+
+test('a deleted_at record never known locally is a harmless no-op', function () {
+    $company = Company::factory()->create(['api_url' => 'https://example.com/functions/v1/get-leads']);
+
+    Http::fake([
+        'https://example.com/functions/v1/get-leads*' => Http::response([
+            'success' => true,
+            'total' => 1,
+            'all_leads_count' => 1,
+            'page' => 0,
+            'pages' => 1,
+            'next_cursor' => null,
+            'next_since' => null,
+            'data' => [[...leadPayload('id-never-known', '2026-07-01T00:00:00Z'), 'deleted_at' => now()->toIso8601String()]],
+        ]),
+    ]);
+
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $response = $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
+
+    $response->assertInertiaFlash('toast.type', 'success');
+    expect(Lead::where('external_id', 'id-never-known')->exists())->toBeFalse();
 });

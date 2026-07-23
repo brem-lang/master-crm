@@ -98,22 +98,6 @@ export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="leads_count_url">
-                                    Leads Count API URL
-                                </Label>
-                                <Input
-                                    id="leads_count_url"
-                                    name="leads_count_url"
-                                    type="url"
-                                    defaultValue={
-                                        company?.leads_count_url ?? ''
-                                    }
-                                    placeholder="https://child-crm.example.com/api/leads-count"
-                                />
-                                <InputError message={errors.leads_count_url} />
-                            </div>
-
-                            <div className="grid gap-2">
                                 <Label htmlFor="affiliates_url">
                                     Affiliates API URL
                                 </Label>
@@ -125,24 +109,6 @@ export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
                                     placeholder="https://child-crm.example.com/api/get-all-affiliates"
                                 />
                                 <InputError message={errors.affiliates_url} />
-                            </div>
-
-                            <div className="grid gap-2">
-                                <Label htmlFor="affiliate_count_api_url">
-                                    Affiliate Count API URL
-                                </Label>
-                                <Input
-                                    id="affiliate_count_api_url"
-                                    name="affiliate_count_api_url"
-                                    type="url"
-                                    defaultValue={
-                                        company?.affiliate_count_api_url ?? ''
-                                    }
-                                    placeholder="https://child-crm.example.com/api/count-affiliates"
-                                />
-                                <InputError
-                                    message={errors.affiliate_count_api_url}
-                                />
                             </div>
 
                             <div className="grid gap-2">
@@ -159,24 +125,6 @@ export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
                                     placeholder="https://child-crm.example.com/api/get-all-advertisers"
                                 />
                                 <InputError message={errors.advertisers_url} />
-                            </div>
-
-                            <div className="grid gap-2">
-                                <Label htmlFor="advertiser_count_api_url">
-                                    Advertiser Count API URL
-                                </Label>
-                                <Input
-                                    id="advertiser_count_api_url"
-                                    name="advertiser_count_api_url"
-                                    type="url"
-                                    defaultValue={
-                                        company?.advertiser_count_api_url ?? ''
-                                    }
-                                    placeholder="https://child-crm.example.com/api/count-advertisers"
-                                />
-                                <InputError
-                                    message={errors.advertiser_count_api_url}
-                                />
                             </div>
 
                             <div className="grid gap-2">

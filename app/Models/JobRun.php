@@ -15,12 +15,13 @@ use Illuminate\Support\Carbon;
  * @property string $triggered_by
  * @property bool $success
  * @property int $pulled
+ * @property int $deleted
  * @property string $message
  * @property int|null $attempt
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['company_id', 'triggered_by', 'success', 'pulled', 'message', 'attempt'])]
+#[Fillable(['company_id', 'triggered_by', 'success', 'pulled', 'deleted', 'message', 'attempt'])]
 class JobRun extends Model
 {
     /** @use HasFactory<JobRunFactory> */

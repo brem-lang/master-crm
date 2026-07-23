@@ -1,11 +1,19 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { Search } from 'lucide-react';
+import { Ban, Check, Copy, Eye, FlaskConical, Search } from 'lucide-react';
 import { useState } from 'react';
 import { DataPagination } from '@/components/data-pagination';
 import Heading from '@/components/heading';
 import { RefreshButton } from '@/components/refresh-button';
 import { StatCard } from '@/components/stat-card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
     Select,
@@ -23,6 +31,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { useClipboard } from '@/hooks/use-clipboard';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { index as affiliatesIndex } from '@/routes/affiliates';
 import type { Affiliate, Company, Paginator } from '@/types';
@@ -31,6 +40,169 @@ function statusBadgeClass(isActive: boolean): string {
     return isActive
         ? 'border-transparent bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
         : 'border-transparent bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+}
+
+function CopyableApiKey({ apiKey }: { apiKey: string | null }) {
+    const [copiedText, copy] = useClipboard();
+
+    if (!apiKey) {
+        return <span className="text-muted-foreground">—</span>;
+    }
+
+    const isCopied = copiedText === apiKey;
+
+    return (
+        <div className="flex items-center gap-1.5">
+            <code className="max-w-40 truncate text-xs">{apiKey}</code>
+            <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-6 shrink-0"
+                aria-label="Copy API key"
+                onClick={() => copy(apiKey)}
+            >
+                {isCopied ? (
+                    <Check className="size-3.5" />
+                ) : (
+                    <Copy className="size-3.5" />
+                )}
+            </Button>
+        </div>
+    );
+}
+
+function TestModeBadge({ testMode }: { testMode: boolean }) {
+    return testMode ? (
+        <Badge
+            variant="outline"
+            className="gap-1 border-transparent bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+        >
+            <FlaskConical className="size-3" />
+            Test
+        </Badge>
+    ) : (
+        <Badge variant="outline" className="gap-1 text-muted-foreground">
+            <Ban className="size-3" />
+            Live
+        </Badge>
+    );
+}
+
+function metaLabel(key: string): string {
+    return key
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function metaValue(value: unknown): string {
+    if (value === null || value === undefined || value === '') {
+        return '—';
+    }
+
+    if (typeof value === 'object') {
+        return JSON.stringify(value);
+    }
+
+    return String(value);
+}
+
+function AffiliateDetailsDialog({
+    affiliate,
+    open,
+    onOpenChange,
+}: {
+    affiliate: Affiliate | null;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}) {
+    if (!affiliate) {
+        return null;
+    }
+
+    const meta = affiliate.meta ?? {};
+    const metaEntries = Object.entries(meta).filter(
+        ([, value]) => value !== null && value !== '' && value !== undefined,
+    );
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>{affiliate.name}</DialogTitle>
+                    <DialogDescription>
+                        <Badge
+                            variant="outline"
+                            className={statusBadgeClass(affiliate.is_active)}
+                        >
+                            {affiliate.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="max-h-[70vh] space-y-6 overflow-y-auto">
+                    <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+                        {affiliate.company && (
+                            <div>
+                                <dt className="text-muted-foreground">
+                                    Company
+                                </dt>
+                                <dd className="font-medium wrap-break-word">
+                                    {affiliate.company.name}
+                                </dd>
+                            </div>
+                        )}
+                        <div>
+                            <dt className="text-muted-foreground">
+                                External ID
+                            </dt>
+                            <dd className="font-medium wrap-break-word">
+                                {affiliate.external_id}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt className="text-muted-foreground">Synced</dt>
+                            <dd className="font-medium wrap-break-word">
+                                {affiliate.synced_at
+                                    ? new Date(
+                                          affiliate.synced_at,
+                                      ).toLocaleString()
+                                    : '—'}
+                            </dd>
+                        </div>
+                        <div className="col-span-2 sm:col-span-3">
+                            <dt className="mb-1 text-muted-foreground">
+                                API Key
+                            </dt>
+                            <dd className="font-medium">
+                                <CopyableApiKey apiKey={affiliate.api_key} />
+                            </dd>
+                        </div>
+                    </dl>
+
+                    {metaEntries.length > 0 && (
+                        <div>
+                            <p className="mb-2 text-sm font-medium text-muted-foreground">
+                                Additional details
+                            </p>
+                            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+                                {metaEntries.map(([key, value]) => (
+                                    <div key={key}>
+                                        <dt className="text-muted-foreground">
+                                            {metaLabel(key)}
+                                        </dt>
+                                        <dd className="font-medium wrap-break-word">
+                                            {metaValue(value)}
+                                        </dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        </div>
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 type PageProps = {
@@ -48,6 +220,9 @@ export default function AffiliatesIndex() {
     const { stats, affiliates, companies, filters } =
         usePage<PageProps>().props;
     const [search, setSearch] = useState(filters.search);
+    const [viewingAffiliate, setViewingAffiliate] = useState<Affiliate | null>(
+        null,
+    );
 
     const applyFilters = (next: Partial<typeof filters>) => {
         router.get(
@@ -170,19 +345,23 @@ export default function AffiliatesIndex() {
                                     </TableHead>
                                 )}
                                 <TableHead>Status</TableHead>
+                                <TableHead className="hidden lg:table-cell">
+                                    API Key
+                                </TableHead>
                                 <TableHead className="hidden md:table-cell">
                                     Test Mode
                                 </TableHead>
                                 <TableHead className="hidden md:table-cell">
                                     Synced
                                 </TableHead>
+                                <TableHead className="w-px" />
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {affiliates.data.length === 0 ? (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={5}
+                                        colSpan={7}
                                         className="py-8 text-center text-sm text-muted-foreground"
                                     >
                                         No affiliates synced yet.
@@ -211,10 +390,17 @@ export default function AffiliatesIndex() {
                                                     : 'Inactive'}
                                             </Badge>
                                         </TableCell>
+                                        <TableCell className="hidden lg:table-cell">
+                                            <CopyableApiKey
+                                                apiKey={affiliate.api_key}
+                                            />
+                                        </TableCell>
                                         <TableCell className="hidden md:table-cell">
-                                            {affiliate.meta?.test_mode
-                                                ? 'Yes'
-                                                : 'No'}
+                                            <TestModeBadge
+                                                testMode={
+                                                    !!affiliate.meta?.test_mode
+                                                }
+                                            />
                                         </TableCell>
                                         <TableCell className="hidden md:table-cell">
                                             {affiliate.synced_at
@@ -222,6 +408,20 @@ export default function AffiliatesIndex() {
                                                       affiliate.synced_at,
                                                   ).toLocaleString()
                                                 : '—'}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                aria-label={`View ${affiliate.name}`}
+                                                onClick={() =>
+                                                    setViewingAffiliate(
+                                                        affiliate,
+                                                    )
+                                                }
+                                            >
+                                                <Eye className="size-4" />
+                                            </Button>
                                         </TableCell>
                                     </TableRow>
                                 ))
@@ -231,6 +431,12 @@ export default function AffiliatesIndex() {
                 </div>
 
                 <DataPagination paginator={affiliates} filters={filters} />
+
+                <AffiliateDetailsDialog
+                    affiliate={viewingAffiliate}
+                    open={!!viewingAffiliate}
+                    onOpenChange={(open) => !open && setViewingAffiliate(null)}
+                />
             </div>
         </>
     );

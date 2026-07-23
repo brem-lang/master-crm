@@ -32,20 +32,27 @@ class AffiliateController extends Controller
             sum(case when is_active = 0 then 1 else 0 end) as inactive
         ')->first();
 
+        $affiliates = $scoped()
+            ->when($search !== '', fn ($query) => $query->where('name', 'like', "%{$search}%"))
+            ->when($status === 'active', fn ($query) => $query->where('is_active', true))
+            ->when($status === 'inactive', fn ($query) => $query->where('is_active', false))
+            ->when(! $companyId, fn ($query) => $query->with('company:id,name'))
+            ->latest()
+            ->paginate($this->perPage($request))
+            ->withQueryString();
+
+        // api_key is hidden by default (see Affiliate::$hidden) so it never leaks
+        // through any other endpoint — deliberately revealed only here, for admins
+        // who already have permission to view this page.
+        $affiliates->getCollection()->makeVisible('api_key');
+
         $props = [
             'stats' => [
                 'total' => (int) $stats->total,
                 'active' => (int) $stats->active,
                 'inactive' => (int) $stats->inactive,
             ],
-            'affiliates' => $scoped()
-                ->when($search !== '', fn ($query) => $query->where('name', 'like', "%{$search}%"))
-                ->when($status === 'active', fn ($query) => $query->where('is_active', true))
-                ->when($status === 'inactive', fn ($query) => $query->where('is_active', false))
-                ->when(! $companyId, fn ($query) => $query->with('company:id,name'))
-                ->latest()
-                ->paginate($this->perPage($request))
-                ->withQueryString(),
+            'affiliates' => $affiliates,
             'filters' => [
                 'search' => $search,
                 'status' => $status,

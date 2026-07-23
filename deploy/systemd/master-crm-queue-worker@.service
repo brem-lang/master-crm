@@ -1,0 +1,21 @@
+[Unit]
+Description=Master CRM queue worker %i (leads/affiliates/advertisers sync)
+After=network.target mysql.service postgresql.service
+
+[Service]
+# Update these three to match the actual deploy user and path.
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/master-crm
+Restart=always
+RestartSec=5
+# --sleep=3: poll delay when the queue is empty.
+# --tries=3 --backoff sourced from PullCompanyLeadsJob itself; this is just the
+# worker-level fallback for jobs that don't define their own.
+# --max-time=3600: recycle the worker hourly so a slow memory leak or stale
+# opcode cache never lingers indefinitely; systemd's Restart=always brings it
+# straight back up.
+ExecStart=/usr/bin/php /var/www/master-crm/artisan queue:work database --sleep=3 --tries=3 --max-time=3600
+
+[Install]
+WantedBy=multi-user.target

@@ -367,7 +367,7 @@ test('an unsafe advertisers url never triggers a real request', function () {
     expect($jobRun->success)->toBeFalse();
 });
 
-test('when affiliate_count_api_url is set and matches the local count, get-all-affiliates is never called', function () {
+test('affiliate_count_api_url is no longer consulted — get-all-affiliates is always called even when the count matches', function () {
     $company = Company::factory()->create([
         'api_url' => 'https://example.com/functions/v1/get-leads',
         'affiliates_url' => 'https://example.com/functions/v1/get-all-affiliates',
@@ -380,9 +380,9 @@ test('when affiliate_count_api_url is set and matches the local count, get-all-a
             'success' => true, 'total' => 0, 'all_leads_count' => 0, 'page' => 0, 'pages' => 1,
             'next_cursor' => null, 'next_since' => null, 'data' => [],
         ]),
-        'https://example.com/functions/v1/count-affiliates*' => Http::response([
-            'success' => true,
-            'total_affiliates' => 2,
+        'https://example.com/functions/v1/get-all-affiliates*' => Http::response([
+            'success' => true, 'total' => 2, 'all_affiliates_count' => 2, 'page' => 0, 'pages' => 1,
+            'next_cursor' => null, 'next_since' => null, 'data' => [],
         ]),
     ]);
 
@@ -391,38 +391,37 @@ test('when affiliate_count_api_url is set and matches the local count, get-all-a
 
     $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
 
-    // Only the lightweight count endpoint plus the (empty) leads pull were hit —
-    // get-all-affiliates was never called.
-    Http::assertNotSent(fn ($request) => str_contains($request->url(), 'get-all-affiliates'));
+    // The count endpoint is never hit — a total-count match can't tell an in-place
+    // is_active update from "nothing changed", so get-all-affiliates is always checked.
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), 'count-affiliates'));
+    Http::assertSent(fn ($request) => str_contains($request->url(), 'get-all-affiliates'));
     expect(Affiliate::where('company_id', $company->id)->count())->toBe(2);
 });
 
-test('when affiliate_count_api_url is set and differs, a full pull happens using get-all-affiliates', function () {
+test('an in-place is_active update on an already-known affiliate is pulled even though the total count is unchanged', function () {
     $company = Company::factory()->create([
         'api_url' => 'https://example.com/functions/v1/get-leads',
         'affiliates_url' => 'https://example.com/functions/v1/get-all-affiliates',
-        'affiliate_count_api_url' => 'https://example.com/functions/v1/count-affiliates',
+        'affiliates_last_synced_since' => now()->subDay(),
     ]);
-    Affiliate::factory()->count(1)->create(['company_id' => $company->id]);
+    Affiliate::factory()->create(['company_id' => $company->id, 'external_id' => 'aff-1', 'is_active' => true]);
 
     Http::fake([
         'https://example.com/functions/v1/get-leads*' => Http::response([
             'success' => true, 'total' => 0, 'all_leads_count' => 0, 'page' => 0, 'pages' => 1,
             'next_cursor' => null, 'next_since' => null, 'data' => [],
         ]),
-        'https://example.com/functions/v1/count-affiliates*' => Http::response([
-            'success' => true,
-            'total_affiliates' => 2,
-        ]),
+        // Same total count as local (1) — the old count-based short-circuit would have
+        // stopped here without ever seeing the is_active flip below.
         'https://example.com/functions/v1/get-all-affiliates*' => Http::response([
             'success' => true,
-            'total' => 2,
-            'all_affiliates_count' => 2,
+            'total' => 1,
+            'all_affiliates_count' => 1,
             'page' => 0,
             'pages' => 1,
             'next_cursor' => 'aff-1',
-            'next_since' => '2026-06-30T18:34:15.88132+00:00',
-            'data' => [affiliatePayload('aff-1')],
+            'next_since' => now()->toIso8601String(),
+            'data' => [affiliatePayload('aff-1', ['is_active' => false])],
         ]),
     ]);
 
@@ -431,31 +430,10 @@ test('when affiliate_count_api_url is set and differs, a full pull happens using
 
     $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
 
-    Http::assertSent(fn ($request) => str_contains($request->url(), 'get-all-affiliates'));
-    expect(Affiliate::where('company_id', $company->id)->count())->toBe(2);
+    expect(Affiliate::where('external_id', 'aff-1')->first()->is_active)->toBeFalse();
 });
 
-test('an unsafe affiliate_count_api_url never triggers a real request', function () {
-    Http::fake();
-
-    $company = Company::factory()->create([
-        'api_url' => 'https://example.com/functions/v1/get-leads',
-        'affiliates_url' => 'https://example.com/functions/v1/get-all-affiliates',
-        'affiliate_count_api_url' => 'http://127.0.0.1/count-affiliates',
-    ]);
-
-    $parentAdmin = User::factory()->create();
-    $parentAdmin->assignRole('parent-admin');
-
-    $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
-
-    Http::assertNotSent(fn ($request) => str_contains($request->url(), 'count-affiliates'));
-
-    $jobRun = JobRun::where('company_id', $company->id)->orderByDesc('id')->first();
-    expect($jobRun->success)->toBeFalse();
-});
-
-test('when advertiser_count_api_url is set and matches the local count, get-all-advertisers is never called', function () {
+test('advertiser_count_api_url is no longer consulted — get-all-advertisers is always called even when the count matches', function () {
     $company = Company::factory()->create([
         'api_url' => 'https://example.com/functions/v1/get-leads',
         'advertisers_url' => 'https://example.com/functions/v1/get-all-advertisers',
@@ -468,66 +446,10 @@ test('when advertiser_count_api_url is set and matches the local count, get-all-
             'success' => true, 'total' => 0, 'all_leads_count' => 0, 'page' => 0, 'pages' => 1,
             'next_cursor' => null, 'next_since' => null, 'data' => [],
         ]),
-        'https://example.com/functions/v1/count-advertisers*' => Http::response([
-            'success' => true,
-            'total_advertisers' => 2,
-        ]),
-    ]);
-
-    $parentAdmin = User::factory()->create();
-    $parentAdmin->assignRole('parent-admin');
-
-    $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
-
-    Http::assertNotSent(fn ($request) => str_contains($request->url(), 'get-all-advertisers'));
-    expect(Advertiser::where('company_id', $company->id)->count())->toBe(2);
-});
-
-test('when advertiser_count_api_url is set and differs, a full pull happens using get-all-advertisers', function () {
-    $company = Company::factory()->create([
-        'api_url' => 'https://example.com/functions/v1/get-leads',
-        'advertisers_url' => 'https://example.com/functions/v1/get-all-advertisers',
-        'advertiser_count_api_url' => 'https://example.com/functions/v1/count-advertisers',
-    ]);
-    Advertiser::factory()->count(1)->create(['company_id' => $company->id]);
-
-    Http::fake([
-        'https://example.com/functions/v1/get-leads*' => Http::response([
-            'success' => true, 'total' => 0, 'all_leads_count' => 0, 'page' => 0, 'pages' => 1,
+        'https://example.com/functions/v1/get-all-advertisers*' => Http::response([
+            'success' => true, 'total' => 2, 'all_advertisers_count' => 2, 'page' => 0, 'pages' => 1,
             'next_cursor' => null, 'next_since' => null, 'data' => [],
         ]),
-        'https://example.com/functions/v1/count-advertisers*' => Http::response([
-            'success' => true,
-            'total_advertisers' => 2,
-        ]),
-        'https://example.com/functions/v1/get-all-advertisers*' => Http::response([
-            'success' => true,
-            'total' => 2,
-            'all_advertisers_count' => 2,
-            'page' => 0,
-            'pages' => 1,
-            'next_cursor' => 'adv-1',
-            'next_since' => '2026-07-09T21:57:18.210204+00:00',
-            'data' => [advertiserPayload('adv-1')],
-        ]),
-    ]);
-
-    $parentAdmin = User::factory()->create();
-    $parentAdmin->assignRole('parent-admin');
-
-    $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
-
-    Http::assertSent(fn ($request) => str_contains($request->url(), 'get-all-advertisers'));
-    expect(Advertiser::where('company_id', $company->id)->count())->toBe(2);
-});
-
-test('an unsafe advertiser_count_api_url never triggers a real request', function () {
-    Http::fake();
-
-    $company = Company::factory()->create([
-        'api_url' => 'https://example.com/functions/v1/get-leads',
-        'advertisers_url' => 'https://example.com/functions/v1/get-all-advertisers',
-        'advertiser_count_api_url' => 'http://169.254.169.254/count-advertisers',
     ]);
 
     $parentAdmin = User::factory()->create();
@@ -536,7 +458,119 @@ test('an unsafe advertiser_count_api_url never triggers a real request', functio
     $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
 
     Http::assertNotSent(fn ($request) => str_contains($request->url(), 'count-advertisers'));
+    Http::assertSent(fn ($request) => str_contains($request->url(), 'get-all-advertisers'));
+    expect(Advertiser::where('company_id', $company->id)->count())->toBe(2);
+});
+
+test('an in-place is_active update on an already-known advertiser is pulled even though the total count is unchanged', function () {
+    $company = Company::factory()->create([
+        'api_url' => 'https://example.com/functions/v1/get-leads',
+        'advertisers_url' => 'https://example.com/functions/v1/get-all-advertisers',
+        'advertisers_last_synced_since' => now()->subDay(),
+    ]);
+    Advertiser::factory()->create(['company_id' => $company->id, 'external_id' => 'adv-1', 'is_active' => true]);
+
+    Http::fake([
+        'https://example.com/functions/v1/get-leads*' => Http::response([
+            'success' => true, 'total' => 0, 'all_leads_count' => 0, 'page' => 0, 'pages' => 1,
+            'next_cursor' => null, 'next_since' => null, 'data' => [],
+        ]),
+        'https://example.com/functions/v1/get-all-advertisers*' => Http::response([
+            'success' => true,
+            'total' => 1,
+            'all_advertisers_count' => 1,
+            'page' => 0,
+            'pages' => 1,
+            'next_cursor' => 'adv-1',
+            'next_since' => now()->toIso8601String(),
+            'data' => [advertiserPayload('adv-1', ['is_active' => false])],
+        ]),
+    ]);
+
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
+
+    expect(Advertiser::where('external_id', 'adv-1')->first()->is_active)->toBeFalse();
+});
+
+test('a soft-deleted affiliate from the child CRM is removed locally', function () {
+    $company = Company::factory()->create([
+        'api_url' => 'https://example.com/functions/v1/get-leads',
+        'affiliates_url' => 'https://example.com/functions/v1/get-all-affiliates',
+    ]);
+    Affiliate::factory()->create(['company_id' => $company->id, 'external_id' => 'aff-deleted']);
+    Affiliate::factory()->create(['company_id' => $company->id, 'external_id' => 'aff-kept']);
+
+    Http::fake([
+        'https://example.com/functions/v1/get-leads*' => Http::response([
+            'success' => true, 'total' => 0, 'all_leads_count' => 0, 'page' => 0, 'pages' => 1,
+            'next_cursor' => null, 'next_since' => null, 'data' => [],
+        ]),
+        'https://example.com/functions/v1/get-all-affiliates*' => Http::response([
+            'success' => true,
+            'total' => 2,
+            'all_affiliates_count' => 2,
+            'page' => 0,
+            'pages' => 1,
+            'next_cursor' => 'aff-kept',
+            'next_since' => now()->toIso8601String(),
+            'data' => [
+                [...affiliatePayload('aff-deleted'), 'deleted_at' => now()->toIso8601String()],
+                affiliatePayload('aff-kept'),
+            ],
+        ]),
+    ]);
+
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
+
+    expect(Affiliate::where('external_id', 'aff-deleted')->exists())->toBeFalse();
+    expect(Affiliate::where('external_id', 'aff-kept')->exists())->toBeTrue();
 
     $jobRun = JobRun::where('company_id', $company->id)->orderByDesc('id')->first();
-    expect($jobRun->success)->toBeFalse();
+    expect($jobRun->deleted)->toBe(1);
+});
+
+test('a soft-deleted advertiser from the child CRM is removed locally', function () {
+    $company = Company::factory()->create([
+        'api_url' => 'https://example.com/functions/v1/get-leads',
+        'advertisers_url' => 'https://example.com/functions/v1/get-all-advertisers',
+    ]);
+    Advertiser::factory()->create(['company_id' => $company->id, 'external_id' => 'adv-deleted']);
+    Advertiser::factory()->create(['company_id' => $company->id, 'external_id' => 'adv-kept']);
+
+    Http::fake([
+        'https://example.com/functions/v1/get-leads*' => Http::response([
+            'success' => true, 'total' => 0, 'all_leads_count' => 0, 'page' => 0, 'pages' => 1,
+            'next_cursor' => null, 'next_since' => null, 'data' => [],
+        ]),
+        'https://example.com/functions/v1/get-all-advertisers*' => Http::response([
+            'success' => true,
+            'total' => 2,
+            'all_advertisers_count' => 2,
+            'page' => 0,
+            'pages' => 1,
+            'next_cursor' => 'adv-kept',
+            'next_since' => now()->toIso8601String(),
+            'data' => [
+                [...advertiserPayload('adv-deleted'), 'deleted_at' => now()->toIso8601String()],
+                advertiserPayload('adv-kept'),
+            ],
+        ]),
+    ]);
+
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $this->actingAs($parentAdmin)->post(route('companies.pull-data', $company));
+
+    expect(Advertiser::where('external_id', 'adv-deleted')->exists())->toBeFalse();
+    expect(Advertiser::where('external_id', 'adv-kept')->exists())->toBeTrue();
+
+    $jobRun = JobRun::where('company_id', $company->id)->orderByDesc('id')->first();
+    expect($jobRun->deleted)->toBe(1);
 });

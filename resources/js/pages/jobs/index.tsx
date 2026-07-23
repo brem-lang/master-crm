@@ -57,6 +57,7 @@ function JobRunDetailsDialog({
         ['Triggered by', run.triggered_by],
         ['Attempt', run.attempt ? String(run.attempt) : '—'],
         ['Pulled', String(run.pulled)],
+        ['Deleted', String(run.deleted)],
         ['Ran at', new Date(run.created_at).toLocaleString()],
     ];
 
@@ -109,6 +110,7 @@ type PageProps = {
         successful: number;
         failed: number;
         pulled: number;
+        deleted: number;
     };
     runs: Paginator<JobRun>;
     companies: Pick<Company, 'id' | 'name'>[];
@@ -148,11 +150,12 @@ export default function JobsIndex() {
                     <RefreshButton />
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-4">
+                <div className="grid gap-4 sm:grid-cols-5">
                     <StatCard label="Total runs" value={stats.total} />
                     <StatCard label="Successful" value={stats.successful} />
                     <StatCard label="Failed" value={stats.failed} />
                     <StatCard label="Leads pulled" value={stats.pulled} />
+                    <StatCard label="Deleted" value={stats.deleted} />
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -221,6 +224,9 @@ export default function JobsIndex() {
                                 <TableHead className="text-right">
                                     Pulled
                                 </TableHead>
+                                <TableHead className="hidden text-right sm:table-cell">
+                                    Deleted
+                                </TableHead>
                                 <TableHead>Triggered by</TableHead>
                                 <TableHead className="hidden lg:table-cell">
                                     Message
@@ -235,7 +241,7 @@ export default function JobsIndex() {
                             {runs.data.length === 0 ? (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={7}
+                                        colSpan={8}
                                         className="py-8 text-center text-sm text-muted-foreground"
                                     >
                                         No runs yet.
@@ -261,6 +267,9 @@ export default function JobsIndex() {
                                         </TableCell>
                                         <TableCell className="text-right tabular-nums">
                                             {run.pulled}
+                                        </TableCell>
+                                        <TableCell className="hidden text-right tabular-nums sm:table-cell">
+                                            {run.deleted}
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="secondary">

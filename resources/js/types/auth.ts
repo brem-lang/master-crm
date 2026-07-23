@@ -70,6 +70,7 @@ export type Affiliate = {
     company_id: number;
     external_id: string;
     name: string;
+    api_key: string | null;
     is_active: boolean;
     meta: Record<string, unknown> | null;
     synced_at: string | null;
@@ -98,6 +99,7 @@ export type JobRun = {
     triggered_by: 'manual' | 'scheduled';
     success: boolean;
     pulled: number;
+    deleted: number;
     message: string;
     attempt: number | null;
     created_at: string;

@@ -1,11 +1,26 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { Search } from 'lucide-react';
+import { Eye, MoreHorizontal, Search, Send } from 'lucide-react';
 import { useState } from 'react';
 import { DataPagination } from '@/components/data-pagination';
 import Heading from '@/components/heading';
 import { RefreshButton } from '@/components/refresh-button';
 import { StatCard } from '@/components/stat-card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
     Select,
@@ -33,6 +48,199 @@ function statusBadgeClass(isActive: boolean): string {
         : 'border-transparent bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
 }
 
+function metaLabel(key: string): string {
+    return key
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function metaValue(value: unknown): string {
+    if (value === null || value === undefined || value === '') {
+        return '—';
+    }
+
+    if (typeof value === 'object') {
+        return JSON.stringify(value);
+    }
+
+    return String(value);
+}
+
+/**
+ * Flattens one level of nested objects (e.g. a `config` blob holding its own
+ * named fields like `crm_type`/`api_url`/`affiliate_token`) so each surfaces
+ * as its own labeled row instead of a single raw JSON blob.
+ */
+function flattenMetaEntries(
+    meta: Record<string, unknown>,
+): [string, unknown][] {
+    return Object.entries(meta).flatMap(([key, value]) => {
+        if (isPlainObject(value)) {
+            const nested = Object.entries(value);
+
+            return nested.length > 0
+                ? nested.map(
+                      ([nestedKey, nestedValue]) =>
+                          [
+                              `${metaLabel(key)}: ${metaLabel(nestedKey)}`,
+                              nestedValue,
+                          ] as [string, unknown],
+                  )
+                : [];
+        }
+
+        return [[key, value] as [string, unknown]];
+    });
+}
+
+function AdvertiserDetailsDialog({
+    advertiser,
+    open,
+    onOpenChange,
+}: {
+    advertiser: Advertiser | null;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}) {
+    if (!advertiser) {
+        return null;
+    }
+
+    const meta = advertiser.meta ?? {};
+    const metaEntries = flattenMetaEntries(meta).filter(
+        ([, value]) => value !== null && value !== '' && value !== undefined,
+    );
+
+    const fields: [string, string][] = [
+        ['Type', metaValue(advertiser.advertiser_type)],
+        ['URL', metaValue(advertiser.url)],
+        ['Daily Cap', metaValue(advertiser.daily_cap)],
+        ['Hourly Cap', metaValue(advertiser.hourly_cap)],
+        ['Default Deal Type', metaValue(advertiser.default_deal_type)],
+        [
+            'Synced',
+            advertiser.synced_at
+                ? new Date(advertiser.synced_at).toLocaleString()
+                : '—',
+        ],
+    ];
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>{advertiser.name}</DialogTitle>
+                    <DialogDescription>
+                        {advertiser.company && (
+                            <span className="mr-2">
+                                {advertiser.company.name}
+                            </span>
+                        )}
+                        <Badge
+                            variant="outline"
+                            className={statusBadgeClass(advertiser.is_active)}
+                        >
+                            {advertiser.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="max-h-[70vh] space-y-6 overflow-y-auto">
+                    <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+                        {fields.map(([label, value]) => (
+                            <div key={label}>
+                                <dt className="text-muted-foreground">
+                                    {label}
+                                </dt>
+                                <dd className="font-medium wrap-break-word">
+                                    {value}
+                                </dd>
+                            </div>
+                        ))}
+                    </dl>
+
+                    {metaEntries.length > 0 && (
+                        <div>
+                            <p className="mb-2 text-sm font-medium text-muted-foreground">
+                                Additional details
+                            </p>
+                            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+                                {metaEntries.map(([key, value]) => (
+                                    <div key={key}>
+                                        <dt className="text-muted-foreground">
+                                            {metaLabel(key)}
+                                        </dt>
+                                        <dd className="font-medium wrap-break-word">
+                                            {metaValue(value)}
+                                        </dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        </div>
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function SendTestLeadDialog({
+    advertiser,
+    open,
+    onOpenChange,
+}: {
+    advertiser: Advertiser | null;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}) {
+    if (!advertiser) {
+        return null;
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>
+                        Send test lead to {advertiser.name}
+                    </DialogTitle>
+                    <DialogDescription>
+                        <Badge
+                            variant="outline"
+                            className={statusBadgeClass(advertiser.is_active)}
+                        >
+                            {advertiser.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                    </DialogDescription>
+                </DialogHeader>
+
+                <p className="text-sm text-muted-foreground">
+                    Send a test lead to verify this advertiser&apos;s
+                    integration. This isn&apos;t wired up to a live endpoint
+                    yet.
+                </p>
+
+                <DialogFooter>
+                    <Button
+                        variant="outline"
+                        onClick={() => onOpenChange(false)}
+                    >
+                        Close
+                    </Button>
+                    <Button disabled>
+                        <Send />
+                        Send Test Lead
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 type PageProps = {
     stats: { total: number; active: number; inactive: number };
     advertisers: Paginator<Advertiser>;
@@ -48,6 +256,10 @@ export default function AdvertisersIndex() {
     const { stats, advertisers, companies, filters } =
         usePage<PageProps>().props;
     const [search, setSearch] = useState(filters.search);
+    const [viewingAdvertiser, setViewingAdvertiser] =
+        useState<Advertiser | null>(null);
+    const [sendingTestLeadTo, setSendingTestLeadTo] =
+        useState<Advertiser | null>(null);
 
     const applyFilters = (next: Partial<typeof filters>) => {
         router.get(
@@ -176,19 +388,14 @@ export default function AdvertisersIndex() {
                                 <TableHead className="hidden lg:table-cell">
                                     Daily Cap
                                 </TableHead>
-                                <TableHead className="hidden lg:table-cell">
-                                    Default Deal Type
-                                </TableHead>
-                                <TableHead className="hidden md:table-cell">
-                                    Synced
-                                </TableHead>
+                                <TableHead className="w-px" />
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {advertisers.data.length === 0 ? (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={7}
+                                        colSpan={6}
                                         className="py-8 text-center text-sm text-muted-foreground"
                                     >
                                         No advertisers synced yet.
@@ -222,18 +429,50 @@ export default function AdvertisersIndex() {
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="hidden lg:table-cell">
-                                            {advertiser.daily_cap ?? '—'}
+                                            {advertiser.daily_cap !== null ? (
+                                                <Badge variant="secondary">
+                                                    {advertiser.daily_cap}
+                                                </Badge>
+                                            ) : (
+                                                <span className="text-muted-foreground">
+                                                    —
+                                                </span>
+                                            )}
                                         </TableCell>
-                                        <TableCell className="hidden lg:table-cell">
-                                            {advertiser.default_deal_type ??
-                                                '—'}
-                                        </TableCell>
-                                        <TableCell className="hidden md:table-cell">
-                                            {advertiser.synced_at
-                                                ? new Date(
-                                                      advertiser.synced_at,
-                                                  ).toLocaleString()
-                                                : '—'}
+                                        <TableCell>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        aria-label={`Actions for ${advertiser.name}`}
+                                                    >
+                                                        <MoreHorizontal className="size-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem
+                                                        onSelect={() =>
+                                                            setViewingAdvertiser(
+                                                                advertiser,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Eye />
+                                                        View
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onSelect={() =>
+                                                            setSendingTestLeadTo(
+                                                                advertiser,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Send />
+                                                        Send Test Leads
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                         </TableCell>
                                     </TableRow>
                                 ))
@@ -243,6 +482,18 @@ export default function AdvertisersIndex() {
                 </div>
 
                 <DataPagination paginator={advertisers} filters={filters} />
+
+                <AdvertiserDetailsDialog
+                    advertiser={viewingAdvertiser}
+                    open={!!viewingAdvertiser}
+                    onOpenChange={(open) => !open && setViewingAdvertiser(null)}
+                />
+
+                <SendTestLeadDialog
+                    advertiser={sendingTestLeadTo}
+                    open={!!sendingTestLeadTo}
+                    onOpenChange={(open) => !open && setSendingTestLeadTo(null)}
+                />
             </div>
         </>
     );

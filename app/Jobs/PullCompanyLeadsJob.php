@@ -82,7 +82,7 @@ class PullCompanyLeadsJob implements ShouldBeUnique, ShouldQueue
     }
 
     /**
-     * @param  array{success: bool, pulled: int, message: string}  $result
+     * @param  array{success: bool, pulled: int, deleted: int, message: string}  $result
      */
     private function recordJobRun(array $result): void
     {
@@ -91,6 +91,7 @@ class PullCompanyLeadsJob implements ShouldBeUnique, ShouldQueue
             'triggered_by' => 'scheduled',
             'success' => $result['success'],
             'pulled' => $result['pulled'],
+            'deleted' => $result['deleted'] ?? 0,
             'message' => $result['message'],
             'attempt' => $this->attempts(),
         ]);
