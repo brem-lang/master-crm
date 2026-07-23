@@ -50,6 +50,43 @@ class ChildCrmDirectoryClient
     }
 
     /**
+     * Sends a manually-triggered test lead to one of the company's advertisers.
+     * Unlike every other client method here, a non-2xx reply isn't necessarily
+     * a failure worth hiding behind a generic message — the child API's own
+     * body (its `message`, on both success and error) is what the admin needs
+     * to see, so this returns the status/body pair as-is rather than throwing.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function sendTestLead(Company $company, array $payload): array
+    {
+        if (blank($company->send_test_lead_url)) {
+            return [
+                'status' => 422,
+                'body' => ['success' => false, 'message' => "No send-test-lead API URL is configured for {$company->name}."],
+            ];
+        }
+
+        try {
+            $response = $this->postJson($company, $company->send_test_lead_url, $payload);
+        } catch (ChildCrmSyncException $e) {
+            return ['status' => 502, 'body' => ['success' => false, 'message' => $e->getMessage()]];
+        }
+
+        $body = $response->json();
+
+        if (! is_array($body)) {
+            return [
+                'status' => 502,
+                'body' => ['success' => false, 'message' => "{$company->name}'s API returned an unreadable response."],
+            ];
+        }
+
+        return ['status' => $response->status(), 'body' => $body];
+    }
+
+    /**
      * @throws ChildCrmSyncException
      */
     private function fetchCount(Company $company, ?string $url, string $missingUrlMessage, string $countKey): int

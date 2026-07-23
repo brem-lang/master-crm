@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Advertiser;
 use App\Models\Company;
+use App\Services\ChildCrmDirectoryClient;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -58,5 +60,40 @@ class AdvertiserController extends Controller
         }
 
         return Inertia::render('advertisers/index', $props);
+    }
+
+    public function sendTestLead(Request $request, Advertiser $advertiser, ChildCrmDirectoryClient $client): JsonResponse
+    {
+        $user = $request->user();
+
+        $companyScoped = $user->company_id && $user->can('view-company-customers');
+        $allCompanies = $user->can('view-all-customers');
+
+        abort_unless($user->can('send-test-leads') && ($companyScoped || $allCompanies), 403);
+        abort_if($companyScoped && $advertiser->company_id !== $user->company_id, 403);
+
+        $validated = $request->validate([
+            'firstname' => ['nullable', 'string', 'max:255'],
+            'lastname' => ['nullable', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
+            'mobile' => ['required', 'string', 'max:20'],
+            'country_code' => ['required', 'string', 'size:2'],
+            'country' => ['nullable', 'string', 'max:255'],
+            'ip_address' => ['required', 'ip'],
+            'offer_name' => ['nullable', 'string', 'max:255'],
+            'custom1' => ['nullable', 'string', 'max:255'],
+            'custom2' => ['nullable', 'string', 'max:255'],
+            'custom3' => ['nullable', 'string', 'max:255'],
+            'locale' => ['nullable', 'string', 'max:35'],
+            'password' => ['nullable', 'string', 'max:255'],
+            'currency' => ['nullable', 'string', 'max:10'],
+        ]);
+
+        $result = $client->sendTestLead($advertiser->company, [
+            ...$validated,
+            'advertiser_id' => $advertiser->external_id,
+        ]);
+
+        return response()->json($result['body'], $result['status']);
     }
 }

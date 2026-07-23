@@ -21,6 +21,7 @@ export type Company = {
     advertisers_url?: string | null;
     affiliate_count_api_url?: string | null;
     advertiser_count_api_url?: string | null;
+    send_test_lead_url?: string | null;
     is_active?: boolean;
     users_count?: number;
     last_synced_at?: string | null;

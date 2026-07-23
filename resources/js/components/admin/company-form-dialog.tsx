@@ -128,6 +128,24 @@ export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
                             </div>
 
                             <div className="grid gap-2">
+                                <Label htmlFor="send_test_lead_url">
+                                    Send Test Lead API URL
+                                </Label>
+                                <Input
+                                    id="send_test_lead_url"
+                                    name="send_test_lead_url"
+                                    type="url"
+                                    defaultValue={
+                                        company?.send_test_lead_url ?? ''
+                                    }
+                                    placeholder="https://child-crm.example.com/api/send-test-lead"
+                                />
+                                <InputError
+                                    message={errors.send_test_lead_url}
+                                />
+                            </div>
+
+                            <div className="grid gap-2">
                                 <Label htmlFor="api_key">API Key</Label>
                                 <Input
                                     id="api_key"

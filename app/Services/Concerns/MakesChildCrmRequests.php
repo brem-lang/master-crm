@@ -52,6 +52,38 @@ trait MakesChildCrmRequests
     }
 
     /**
+     * POST-and-inspect, unlike `request()` above — that one throws on any
+     * non-2xx status, which is right for background syncs where only a
+     * generic toast is shown. Callers here (e.g. relaying a child API's own
+     * 400/401/404 body straight to an admin) need the raw response on every
+     * HTTP-level reply, so this only throws for SSRF rejection or a genuine
+     * connection failure — both truly exceptional, unlike a 4xx reply.
+     *
+     * @param  array<string, mixed>  $payload
+     *
+     * @throws ChildCrmSyncException
+     */
+    private function postJson(Company $company, string $url, array $payload): Response
+    {
+        if (! SafeUrl::isSafe($url)) {
+            throw new ChildCrmSyncException("The API address for {$company->name} looks unsafe or invalid, so we didn't contact it.");
+        }
+
+        try {
+            return Http::withHeaders([
+                'Api-Key' => $company->api_key,
+                'Authorization' => "Bearer {$company->api_key}",
+            ])
+                ->connectTimeout(self::CONNECT_TIMEOUT_SECONDS)
+                ->timeout(self::REQUEST_TIMEOUT_SECONDS)
+                ->withOptions(['allow_redirects' => false])
+                ->post($url, $payload);
+        } catch (ConnectionException) {
+            throw new ChildCrmSyncException("Could not reach {$company->name}'s API. Check the API URL and try again.");
+        }
+    }
+
+    /**
      * Translate an HTTP status code into a plain-language summary for the admin toast.
      */
     private function describeStatus(Company $company, int $status): string
