@@ -1,19 +1,40 @@
-import { Head, router, usePage } from '@inertiajs/react';
-import { Ban, Check, Copy, Eye, FlaskConical, Search } from 'lucide-react';
+import { Form, Head, router, usePage } from '@inertiajs/react';
+import {
+    Ban,
+    Check,
+    Copy,
+    Eye,
+    FlaskConical,
+    MoreHorizontal,
+    Search,
+    Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
+import AffiliateController from '@/actions/App/Http/Controllers/AffiliateController';
+import { BulkDeleteBar } from '@/components/bulk-delete-bar';
 import { DataPagination } from '@/components/data-pagination';
 import Heading from '@/components/heading';
 import { RefreshButton } from '@/components/refresh-button';
 import { StatCard } from '@/components/stat-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
+    DialogClose,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
+    DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
     Select,
@@ -33,8 +54,9 @@ import {
 } from '@/components/ui/table';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
+import { useRowSelection } from '@/hooks/use-row-selection';
 import { index as affiliatesIndex } from '@/routes/affiliates';
-import type { Affiliate, Company, Paginator } from '@/types';
+import type { Affiliate, Auth, Company, Paginator } from '@/types';
 
 function statusBadgeClass(isActive: boolean): string {
     return isActive
@@ -206,6 +228,7 @@ function AffiliateDetailsDialog({
 }
 
 type PageProps = {
+    auth: Auth;
     stats: { total: number; active: number; inactive: number };
     affiliates: Paginator<Affiliate>;
     companies?: Pick<Company, 'id' | 'name'>[];
@@ -217,12 +240,16 @@ type PageProps = {
 };
 
 export default function AffiliatesIndex() {
-    const { stats, affiliates, companies, filters } =
+    const { auth, stats, affiliates, companies, filters } =
         usePage<PageProps>().props;
     const [search, setSearch] = useState(filters.search);
     const [viewingAffiliate, setViewingAffiliate] = useState<Affiliate | null>(
         null,
     );
+    const canDeleteAffiliates = auth.permissions?.includes(
+        'delete-affiliates',
+    );
+    const selection = useRowSelection(affiliates.data, affiliates.current_page);
 
     const applyFilters = (next: Partial<typeof filters>) => {
         router.get(
@@ -334,10 +361,48 @@ export default function AffiliatesIndex() {
                     )}
                 </div>
 
+                {canDeleteAffiliates && (
+                    <BulkDeleteBar
+                        count={selection.selectedIds.length}
+                        description="This will permanently delete the selected affiliates. This action cannot be undone."
+                        onConfirm={(onFinish) => {
+                            router.delete(
+                                AffiliateController.bulkDestroy().url,
+                                {
+                                    data: { ids: selection.selectedIds },
+                                    preserveScroll: true,
+                                    onSuccess: () =>
+                                        selection.setSelectedIds([]),
+                                    onFinish,
+                                },
+                            );
+                        }}
+                    />
+                )}
+
                 <div className="rounded-md border">
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                {canDeleteAffiliates && (
+                                    <TableHead className="w-px">
+                                        <Checkbox
+                                            checked={
+                                                selection.allSelected
+                                                    ? true
+                                                    : selection.someSelected
+                                                      ? 'indeterminate'
+                                                      : false
+                                            }
+                                            onCheckedChange={(checked) =>
+                                                selection.toggleAll(
+                                                    checked === true,
+                                                )
+                                            }
+                                            aria-label="Select all"
+                                        />
+                                    </TableHead>
+                                )}
                                 <TableHead>Name</TableHead>
                                 {companies && (
                                     <TableHead className="hidden md:table-cell">
@@ -361,7 +426,9 @@ export default function AffiliatesIndex() {
                             {affiliates.data.length === 0 ? (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={7}
+                                        colSpan={
+                                            canDeleteAffiliates ? 8 : 7
+                                        }
                                         className="py-8 text-center text-sm text-muted-foreground"
                                     >
                                         No affiliates synced yet.
@@ -369,7 +436,32 @@ export default function AffiliatesIndex() {
                                 </TableRow>
                             ) : (
                                 affiliates.data.map((affiliate) => (
-                                    <TableRow key={affiliate.id}>
+                                    <TableRow
+                                        key={affiliate.id}
+                                        data-state={
+                                            selection.isSelected(affiliate.id)
+                                                ? 'selected'
+                                                : undefined
+                                        }
+                                    >
+                                        {canDeleteAffiliates && (
+                                            <TableCell>
+                                                <Checkbox
+                                                    checked={selection.isSelected(
+                                                        affiliate.id,
+                                                    )}
+                                                    onCheckedChange={(
+                                                        checked,
+                                                    ) =>
+                                                        selection.toggleOne(
+                                                            affiliate.id,
+                                                            checked === true,
+                                                        )
+                                                    }
+                                                    aria-label={`Select ${affiliate.name}`}
+                                                />
+                                            </TableCell>
+                                        )}
                                         <TableCell className="font-medium">
                                             {affiliate.name}
                                         </TableCell>
@@ -410,18 +502,101 @@ export default function AffiliatesIndex() {
                                                 : '—'}
                                         </TableCell>
                                         <TableCell>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                aria-label={`View ${affiliate.name}`}
-                                                onClick={() =>
-                                                    setViewingAffiliate(
-                                                        affiliate,
-                                                    )
-                                                }
-                                            >
-                                                <Eye className="size-4" />
-                                            </Button>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        aria-label={`Actions for ${affiliate.name}`}
+                                                    >
+                                                        <MoreHorizontal className="size-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem
+                                                        onSelect={() =>
+                                                            setViewingAffiliate(
+                                                                affiliate,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Eye />
+                                                        View
+                                                    </DropdownMenuItem>
+
+                                                    {canDeleteAffiliates && (
+                                                        <Dialog>
+                                                            <DialogTrigger
+                                                                asChild
+                                                            >
+                                                                <DropdownMenuItem
+                                                                    variant="destructive"
+                                                                    onSelect={(
+                                                                        event,
+                                                                    ) =>
+                                                                        event.preventDefault()
+                                                                    }
+                                                                >
+                                                                    <Trash2 />
+                                                                    Delete
+                                                                </DropdownMenuItem>
+                                                            </DialogTrigger>
+
+                                                            <DialogContent>
+                                                                <DialogTitle>
+                                                                    Delete{' '}
+                                                                    {
+                                                                        affiliate.name
+                                                                    }
+                                                                    ?
+                                                                </DialogTitle>
+                                                                <DialogDescription>
+                                                                    This will
+                                                                    permanently
+                                                                    delete
+                                                                    this
+                                                                    affiliate.
+                                                                    This
+                                                                    action
+                                                                    cannot be
+                                                                    undone.
+                                                                </DialogDescription>
+
+                                                                <DialogFooter className="gap-2">
+                                                                    <DialogClose
+                                                                        asChild
+                                                                    >
+                                                                        <Button variant="secondary">
+                                                                            Cancel
+                                                                        </Button>
+                                                                    </DialogClose>
+
+                                                                    <Form
+                                                                        {...AffiliateController.destroy.form(
+                                                                            affiliate.id,
+                                                                        )}
+                                                                    >
+                                                                        {({
+                                                                            processing,
+                                                                        }) => (
+                                                                            <Button
+                                                                                variant="destructive"
+                                                                                disabled={
+                                                                                    processing
+                                                                                }
+                                                                                type="submit"
+                                                                            >
+                                                                                <Trash2 />
+                                                                                Delete
+                                                                            </Button>
+                                                                        )}
+                                                                    </Form>
+                                                                </DialogFooter>
+                                                            </DialogContent>
+                                                        </Dialog>
+                                                    )}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                         </TableCell>
                                     </TableRow>
                                 ))

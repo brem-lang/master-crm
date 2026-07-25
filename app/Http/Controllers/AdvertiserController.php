@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Advertiser;
+use App\Models\AuditLog;
 use App\Models\Company;
 use App\Services\ChildCrmDirectoryClient;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -95,5 +97,47 @@ class AdvertiserController extends Controller
         ]);
 
         return response()->json($result['body'], $result['status']);
+    }
+
+    public function destroy(Request $request, Advertiser $advertiser): RedirectResponse
+    {
+        $user = $request->user();
+
+        $ownsCompany = $user->company_id && $user->company_id === $advertiser->company_id;
+
+        abort_unless($user->can('delete-advertisers') && ($ownsCompany || $user->can('view-all-customers')), 403);
+
+        AuditLog::record('advertiser.deleted', $advertiser);
+
+        $advertiser->delete();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Advertiser deleted.')]);
+
+        return back();
+    }
+
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->can('delete-advertisers'), 403);
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer', 'exists:advertisers,id'],
+        ]);
+
+        $deleted = Advertiser::whereIn('id', $validated['ids'])
+            ->get()
+            ->filter(fn (Advertiser $advertiser) => $user->company_id === $advertiser->company_id || $user->can('view-all-customers'))
+            ->each(function (Advertiser $advertiser) {
+                AuditLog::record('advertiser.deleted', $advertiser);
+                $advertiser->delete();
+            })
+            ->count();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => trans_choice('{0} No advertisers deleted.|{1} :count advertiser deleted.|[2,*] :count advertisers deleted.', $deleted, ['count' => $deleted])]);
+
+        return back();
     }
 }

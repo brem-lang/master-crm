@@ -42,7 +42,7 @@ import {
 } from '@/components/ui/table';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { index as rolesIndex } from '@/routes/roles';
-import type { Paginator, Role } from '@/types';
+import type { Paginator, PermissionOption, Role } from '@/types';
 
 const BUILT_IN_ROLES = ['parent-admin', 'child-admin', 'sales-rep'];
 
@@ -58,7 +58,7 @@ type Stats = {
 
 type PageProps = {
     roles: Paginator<Role>;
-    permissions: string[];
+    permissions: PermissionOption[];
     filters: Filters;
     stats: Stats;
 };
@@ -143,10 +143,10 @@ export default function RolesIndex() {
                                 </SelectItem>
                                 {permissions.map((permission) => (
                                     <SelectItem
-                                        key={permission}
-                                        value={permission}
+                                        key={permission.name}
+                                        value={permission.name}
                                     >
-                                        {permission}
+                                        {permission.name}
                                     </SelectItem>
                                 ))}
                             </SelectGroup>

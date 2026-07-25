@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Affiliate;
+use App\Models\AuditLog;
 use App\Models\Company;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -65,5 +67,47 @@ class AffiliateController extends Controller
         }
 
         return Inertia::render('affiliates/index', $props);
+    }
+
+    public function destroy(Request $request, Affiliate $affiliate): RedirectResponse
+    {
+        $user = $request->user();
+
+        $ownsCompany = $user->company_id && $user->company_id === $affiliate->company_id;
+
+        abort_unless($user->can('delete-affiliates') && ($ownsCompany || $user->can('view-all-customers')), 403);
+
+        AuditLog::record('affiliate.deleted', $affiliate);
+
+        $affiliate->delete();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Affiliate deleted.')]);
+
+        return back();
+    }
+
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->can('delete-affiliates'), 403);
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer', 'exists:affiliates,id'],
+        ]);
+
+        $deleted = Affiliate::whereIn('id', $validated['ids'])
+            ->get()
+            ->filter(fn (Affiliate $affiliate) => $user->company_id === $affiliate->company_id || $user->can('view-all-customers'))
+            ->each(function (Affiliate $affiliate) {
+                AuditLog::record('affiliate.deleted', $affiliate);
+                $affiliate->delete();
+            })
+            ->count();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => trans_choice('{0} No affiliates deleted.|{1} :count affiliate deleted.|[2,*] :count affiliates deleted.', $deleted, ['count' => $deleted])]);
+
+        return back();
     }
 }

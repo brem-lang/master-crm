@@ -3,6 +3,11 @@ export type Permission = {
     name: string;
 };
 
+export type PermissionOption = {
+    name: string;
+    description: string | null;
+};
+
 export type Role = {
     id: number;
     name: string;

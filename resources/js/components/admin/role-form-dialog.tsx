@@ -15,14 +15,19 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { Role } from '@/types';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
+import type { PermissionOption, Role } from '@/types';
 
 const BUILT_IN_ROLES = ['parent-admin', 'child-admin', 'sales-rep'];
 
 type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    permissions: string[];
+    permissions: PermissionOption[];
     role?: Role | null;
 };
 
@@ -82,46 +87,71 @@ export function RoleFormDialog({
                             <div className="grid gap-2">
                                 <Label>Permissions</Label>
                                 <div className="space-y-2 rounded-md border p-3">
-                                    {permissions.map((permission) => (
-                                        <div
-                                            key={permission}
-                                            className="flex items-center gap-2"
-                                        >
-                                            <Checkbox
-                                                id={`permission-${permission}`}
-                                                checked={selected.includes(
-                                                    permission,
-                                                )}
-                                                onCheckedChange={(checked) =>
-                                                    setSelected((current) =>
-                                                        checked
-                                                            ? [
-                                                                  ...current,
-                                                                  permission,
-                                                              ]
-                                                            : current.filter(
-                                                                  (name) =>
-                                                                      name !==
-                                                                      permission,
-                                                              ),
-                                                    )
-                                                }
-                                            />
-                                            {selected.includes(permission) && (
-                                                <input
-                                                    type="hidden"
-                                                    name="permissions[]"
-                                                    value={permission}
-                                                />
-                                            )}
-                                            <Label
-                                                htmlFor={`permission-${permission}`}
-                                                className="font-normal"
+                                    {permissions.map(
+                                        ({ name, description }) => (
+                                            <div
+                                                key={name}
+                                                className="flex items-center gap-2"
                                             >
-                                                {permission}
-                                            </Label>
-                                        </div>
-                                    ))}
+                                                <Checkbox
+                                                    id={`permission-${name}`}
+                                                    checked={selected.includes(
+                                                        name,
+                                                    )}
+                                                    onCheckedChange={(
+                                                        checked,
+                                                    ) =>
+                                                        setSelected(
+                                                            (current) =>
+                                                                checked
+                                                                    ? [
+                                                                          ...current,
+                                                                          name,
+                                                                      ]
+                                                                    : current.filter(
+                                                                          (
+                                                                              selectedName,
+                                                                          ) =>
+                                                                              selectedName !==
+                                                                              name,
+                                                                      ),
+                                                        )
+                                                    }
+                                                />
+                                                {selected.includes(name) && (
+                                                    <input
+                                                        type="hidden"
+                                                        name="permissions[]"
+                                                        value={name}
+                                                    />
+                                                )}
+                                                {description ? (
+                                                    <Tooltip>
+                                                        <TooltipTrigger
+                                                            asChild
+                                                        >
+                                                            <Label
+                                                                htmlFor={`permission-${name}`}
+                                                                className="font-normal"
+                                                            >
+                                                                {name}
+                                                            </Label>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            {description}
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                ) : (
+                                                    <Label
+                                                        htmlFor={`permission-${name}`}
+                                                        className="font-normal"
+                                                    >
+                                                        {name}
+                                                    </Label>
+                                                )}
+                                            </div>
+                                        ),
+                                    )}
                                 </div>
                                 <InputError message={errors.permissions} />
                             </div>

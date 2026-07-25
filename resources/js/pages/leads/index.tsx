@@ -1,7 +1,9 @@
-import { Head, router, usePage } from '@inertiajs/react';
-import { Eye, Search } from 'lucide-react';
+import { Form, Head, router, usePage } from '@inertiajs/react';
+import { Eye, MoreHorizontal, Search, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import LeadsController from '@/actions/App/Http/Controllers/LeadsController';
 import { BulkAssignBar } from '@/components/bulk-assign-bar';
+import { BulkDeleteBar } from '@/components/bulk-delete-bar';
 import { DataPagination } from '@/components/data-pagination';
 import Heading from '@/components/heading';
 import { LeadDetailsDialog } from '@/components/lead-details-dialog';
@@ -10,6 +12,21 @@ import { StatCard } from '@/components/stat-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
     Select,
@@ -83,6 +100,7 @@ export default function LeadsIndex() {
     const [search, setSearch] = useState(filters.search);
     const [viewingLead, setViewingLead] = useState<Lead | null>(null);
     const canAssignLeads = auth.permissions?.includes('assign-leads');
+    const canDeleteLeads = auth.permissions?.includes('delete-leads');
     const selection = useRowSelection(leads.data, leads.current_page);
 
     const applyFilters = (next: Partial<typeof filters>) => {
@@ -277,11 +295,26 @@ export default function LeadsIndex() {
                     />
                 )}
 
+                {canDeleteLeads && (
+                    <BulkDeleteBar
+                        count={selection.selectedIds.length}
+                        description="This will permanently delete the selected leads. This action cannot be undone."
+                        onConfirm={(onFinish) => {
+                            router.delete(LeadsController.bulkDestroy().url, {
+                                data: { ids: selection.selectedIds },
+                                preserveScroll: true,
+                                onSuccess: () => selection.setSelectedIds([]),
+                                onFinish,
+                            });
+                        }}
+                    />
+                )}
+
                 <div className="rounded-md border">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                {canAssignLeads && (
+                                {(canAssignLeads || canDeleteLeads) && (
                                     <TableHead className="w-px">
                                         <Checkbox
                                             checked={
@@ -337,7 +370,7 @@ export default function LeadsIndex() {
                                             : undefined
                                     }
                                 >
-                                    {canAssignLeads && (
+                                    {(canAssignLeads || canDeleteLeads) && (
                                         <TableCell>
                                             <Checkbox
                                                 checked={selection.isSelected(
@@ -474,14 +507,91 @@ export default function LeadsIndex() {
                                             : '—'}
                                     </TableCell>
                                     <TableCell>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            aria-label={`View ${[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'lead'}`}
-                                            onClick={() => setViewingLead(lead)}
-                                        >
-                                            <Eye className="size-4" />
-                                        </Button>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    aria-label={`Actions for ${[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'lead'}`}
+                                                >
+                                                    <MoreHorizontal className="size-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem
+                                                    onSelect={() =>
+                                                        setViewingLead(lead)
+                                                    }
+                                                >
+                                                    <Eye />
+                                                    View
+                                                </DropdownMenuItem>
+
+                                                {canDeleteLeads && (
+                                                    <Dialog>
+                                                        <DialogTrigger asChild>
+                                                            <DropdownMenuItem
+                                                                variant="destructive"
+                                                                onSelect={(
+                                                                    event,
+                                                                ) =>
+                                                                    event.preventDefault()
+                                                                }
+                                                            >
+                                                                <Trash2 />
+                                                                Delete
+                                                            </DropdownMenuItem>
+                                                        </DialogTrigger>
+
+                                                        <DialogContent>
+                                                            <DialogTitle>
+                                                                Delete this
+                                                                lead?
+                                                            </DialogTitle>
+                                                            <DialogDescription>
+                                                                This will
+                                                                permanently
+                                                                delete this
+                                                                lead. This
+                                                                action cannot
+                                                                be undone.
+                                                            </DialogDescription>
+
+                                                            <DialogFooter className="gap-2">
+                                                                <DialogClose
+                                                                    asChild
+                                                                >
+                                                                    <Button variant="secondary">
+                                                                        Cancel
+                                                                    </Button>
+                                                                </DialogClose>
+
+                                                                <Form
+                                                                    {...LeadsController.destroy.form(
+                                                                        lead.id,
+                                                                    )}
+                                                                >
+                                                                    {({
+                                                                        processing,
+                                                                    }) => (
+                                                                        <Button
+                                                                            variant="destructive"
+                                                                            disabled={
+                                                                                processing
+                                                                            }
+                                                                            type="submit"
+                                                                        >
+                                                                            <Trash2 />
+                                                                            Delete
+                                                                        </Button>
+                                                                    )}
+                                                                </Form>
+                                                            </DialogFooter>
+                                                        </DialogContent>
+                                                    </Dialog>
+                                                )}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </TableCell>
                                 </TableRow>
                             ))}

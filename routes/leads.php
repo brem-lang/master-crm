@@ -11,5 +11,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/leads/{lead}/assign', [LeadsController::class, 'assign'])->name('leads.assign');
     Route::patch('/leads/{lead}/release-ftd', [LeadsController::class, 'releaseFtd'])->name('leads.release-ftd');
     Route::patch('/leads/bulk-assign', [LeadsController::class, 'bulkAssign'])->name('leads.bulk-assign');
+    Route::delete('/leads/bulk-destroy', [LeadsController::class, 'bulkDestroy'])->name('leads.bulk-destroy');
+    Route::delete('/leads/rejected/bulk-destroy', [LeadsController::class, 'bulkDestroyRejected'])->name('leads.rejected.bulk-destroy');
+    Route::delete('/leads/rejected/{lead}', [LeadsController::class, 'destroyRejected'])->name('leads.rejected.destroy');
+    Route::delete('/leads/{lead}', [LeadsController::class, 'destroy'])->name('leads.destroy');
     Route::get('/leads/leaderboard', [SalesRepLeaderboardController::class, 'index'])->name('leads.leaderboard');
 });

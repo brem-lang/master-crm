@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Company;
 use App\Models\Lead;
 use App\Models\User;
@@ -196,6 +197,92 @@ class LeadsController extends Controller
         }
 
         Inertia::flash('toast', ['type' => $updated > 0 ? 'success' : 'error', 'message' => $message]);
+
+        return back();
+    }
+
+    public function destroy(Request $request, Lead $lead): RedirectResponse
+    {
+        $user = $request->user();
+
+        $ownsCompany = $user->company_id && $user->company_id === $lead->company_id;
+
+        abort_unless($user->can('delete-leads') && ($ownsCompany || $user->can('view-all-customers')), 403);
+
+        AuditLog::record('lead.deleted', $lead);
+
+        $lead->delete();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Lead deleted.')]);
+
+        return back();
+    }
+
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->can('delete-leads'), 403);
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer', 'exists:leads,id'],
+        ]);
+
+        $deleted = Lead::whereIn('id', $validated['ids'])
+            ->get()
+            ->filter(fn (Lead $lead) => $user->company_id === $lead->company_id || $user->can('view-all-customers'))
+            ->each(function (Lead $lead) {
+                AuditLog::record('lead.deleted', $lead);
+                $lead->delete();
+            })
+            ->count();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => trans_choice('{0} No leads deleted.|{1} :count lead deleted.|[2,*] :count leads deleted.', $deleted, ['count' => $deleted])]);
+
+        return back();
+    }
+
+    public function destroyRejected(Request $request, Lead $lead): RedirectResponse
+    {
+        $user = $request->user();
+
+        $ownsCompany = $user->company_id && $user->company_id === $lead->company_id;
+
+        abort_unless($user->can('delete-rejected-leads') && ($ownsCompany || $user->can('view-all-customers')), 403);
+        abort_unless($lead->status === 'rejected', 422);
+
+        AuditLog::record('lead.deleted', $lead);
+
+        $lead->delete();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Lead deleted.')]);
+
+        return back();
+    }
+
+    public function bulkDestroyRejected(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->can('delete-rejected-leads'), 403);
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer', 'exists:leads,id'],
+        ]);
+
+        $deleted = Lead::whereIn('id', $validated['ids'])
+            ->where('status', 'rejected')
+            ->get()
+            ->filter(fn (Lead $lead) => $user->company_id === $lead->company_id || $user->can('view-all-customers'))
+            ->each(function (Lead $lead) {
+                AuditLog::record('lead.deleted', $lead);
+                $lead->delete();
+            })
+            ->count();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => trans_choice('{0} No leads deleted.|{1} :count lead deleted.|[2,*] :count leads deleted.', $deleted, ['count' => $deleted])]);
 
         return back();
     }

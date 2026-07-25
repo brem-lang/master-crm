@@ -1,4 +1,4 @@
-import { Head, router, usePage } from '@inertiajs/react';
+import { Form, Head, router, usePage } from '@inertiajs/react';
 import {
     AtSign,
     CircleAlert,
@@ -13,24 +13,30 @@ import {
     Send,
     Sparkles,
     Tag,
+    Trash2,
     UserRound,
     Wand2,
 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import AdvertiserController from '@/actions/App/Http/Controllers/AdvertiserController';
+import { BulkDeleteBar } from '@/components/bulk-delete-bar';
 import { DataPagination } from '@/components/data-pagination';
 import Heading from '@/components/heading';
 import { RefreshButton } from '@/components/refresh-button';
 import { StatCard } from '@/components/stat-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
+    DialogClose,
     DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    DialogTrigger,
 } from '@/components/ui/dialog';
 import {
     DropdownMenu,
@@ -57,6 +63,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
+import { useRowSelection } from '@/hooks/use-row-selection';
 import { generateTestData, getCountryList } from '@/lib/countryData';
 import { index as advertisersIndex, sendTestLead } from '@/routes/advertisers';
 import type { Advertiser, Auth, Company, Paginator } from '@/types';
@@ -790,11 +797,18 @@ export default function AdvertisersIndex() {
     const { auth, stats, advertisers, companies, filters } =
         usePage<PageProps>().props;
     const canSendTestLeads = auth.permissions?.includes('send-test-leads');
+    const canDeleteAdvertisers = auth.permissions?.includes(
+        'delete-advertisers',
+    );
     const [search, setSearch] = useState(filters.search);
     const [viewingAdvertiser, setViewingAdvertiser] =
         useState<Advertiser | null>(null);
     const [sendingTestLeadTo, setSendingTestLeadTo] =
         useState<Advertiser | null>(null);
+    const selection = useRowSelection(
+        advertisers.data,
+        advertisers.current_page,
+    );
 
     const applyFilters = (next: Partial<typeof filters>) => {
         router.get(
@@ -906,10 +920,48 @@ export default function AdvertisersIndex() {
                     )}
                 </div>
 
+                {canDeleteAdvertisers && (
+                    <BulkDeleteBar
+                        count={selection.selectedIds.length}
+                        description="This will permanently delete the selected advertisers. This action cannot be undone."
+                        onConfirm={(onFinish) => {
+                            router.delete(
+                                AdvertiserController.bulkDestroy().url,
+                                {
+                                    data: { ids: selection.selectedIds },
+                                    preserveScroll: true,
+                                    onSuccess: () =>
+                                        selection.setSelectedIds([]),
+                                    onFinish,
+                                },
+                            );
+                        }}
+                    />
+                )}
+
                 <div className="rounded-md border">
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                {canDeleteAdvertisers && (
+                                    <TableHead className="w-px">
+                                        <Checkbox
+                                            checked={
+                                                selection.allSelected
+                                                    ? true
+                                                    : selection.someSelected
+                                                      ? 'indeterminate'
+                                                      : false
+                                            }
+                                            onCheckedChange={(checked) =>
+                                                selection.toggleAll(
+                                                    checked === true,
+                                                )
+                                            }
+                                            aria-label="Select all"
+                                        />
+                                    </TableHead>
+                                )}
                                 <TableHead>Name</TableHead>
                                 {companies && (
                                     <TableHead className="hidden md:table-cell">
@@ -930,7 +982,9 @@ export default function AdvertisersIndex() {
                             {advertisers.data.length === 0 ? (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={6}
+                                        colSpan={
+                                            canDeleteAdvertisers ? 7 : 6
+                                        }
                                         className="py-8 text-center text-sm text-muted-foreground"
                                     >
                                         No advertisers synced yet.
@@ -938,7 +992,32 @@ export default function AdvertisersIndex() {
                                 </TableRow>
                             ) : (
                                 advertisers.data.map((advertiser) => (
-                                    <TableRow key={advertiser.id}>
+                                    <TableRow
+                                        key={advertiser.id}
+                                        data-state={
+                                            selection.isSelected(advertiser.id)
+                                                ? 'selected'
+                                                : undefined
+                                        }
+                                    >
+                                        {canDeleteAdvertisers && (
+                                            <TableCell>
+                                                <Checkbox
+                                                    checked={selection.isSelected(
+                                                        advertiser.id,
+                                                    )}
+                                                    onCheckedChange={(
+                                                        checked,
+                                                    ) =>
+                                                        selection.toggleOne(
+                                                            advertiser.id,
+                                                            checked === true,
+                                                        )
+                                                    }
+                                                    aria-label={`Select ${advertiser.name}`}
+                                                />
+                                            </TableCell>
+                                        )}
                                         <TableCell className="font-medium">
                                             {advertiser.name}
                                         </TableCell>
@@ -1007,6 +1086,75 @@ export default function AdvertisersIndex() {
                                                             <Send />
                                                             Send Test Leads
                                                         </DropdownMenuItem>
+                                                    )}
+                                                    {canDeleteAdvertisers && (
+                                                        <Dialog>
+                                                            <DialogTrigger
+                                                                asChild
+                                                            >
+                                                                <DropdownMenuItem
+                                                                    variant="destructive"
+                                                                    onSelect={(
+                                                                        event,
+                                                                    ) =>
+                                                                        event.preventDefault()
+                                                                    }
+                                                                >
+                                                                    <Trash2 />
+                                                                    Delete
+                                                                </DropdownMenuItem>
+                                                            </DialogTrigger>
+
+                                                            <DialogContent>
+                                                                <DialogTitle>
+                                                                    Delete{' '}
+                                                                    {
+                                                                        advertiser.name
+                                                                    }
+                                                                    ?
+                                                                </DialogTitle>
+                                                                <DialogDescription>
+                                                                    This will
+                                                                    permanently
+                                                                    delete this
+                                                                    advertiser.
+                                                                    This action
+                                                                    cannot be
+                                                                    undone.
+                                                                </DialogDescription>
+
+                                                                <DialogFooter className="gap-2">
+                                                                    <DialogClose
+                                                                        asChild
+                                                                    >
+                                                                        <Button variant="secondary">
+                                                                            Cancel
+                                                                        </Button>
+                                                                    </DialogClose>
+
+                                                                    <Form
+                                                                        {...AdvertiserController.destroy.form(
+                                                                            advertiser.id,
+                                                                        )}
+                                                                    >
+                                                                        {({
+                                                                            processing,
+                                                                        }) => (
+                                                                            <Button
+                                                                                variant="destructive"
+                                                                                disabled={
+                                                                                    processing
+                                                                                }
+                                                                                type="submit"
+                                                                            >
+                                                                                <Trash2 />
+                                                                                Delete
+                                                                            </Button>
+                                                                        )}
+                                                                    </Form>
+                                                                </DialogFooter>
+                                                            </DialogContent>
+                                                        </Dialog>
                                                     )}
                                                 </DropdownMenuContent>
                                             </DropdownMenu>

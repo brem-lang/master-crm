@@ -17,6 +17,27 @@ class RoleController extends Controller
 {
     protected const BUILT_IN_ROLES = ['parent-admin', 'child-admin', 'sales-rep'];
 
+    protected const PERMISSION_DESCRIPTIONS = [
+        'manage-companies' => 'Create, edit, and delete companies across the platform.',
+        'manage-users' => 'Create, edit, and delete user accounts.',
+        'impersonate-users' => 'Log in as another user to troubleshoot on their behalf.',
+        'manage-roles' => 'Create, edit, and delete roles and their permissions.',
+        'view-all-customers' => 'View customer records across all companies.',
+        'view-company-customers' => "View customer records within the user's own company.",
+        'view-reports' => 'Access global reports and dashboards.',
+        'manage-settings' => 'Modify company-wide settings.',
+        'manage-leads' => 'Create, edit, and assign leads.',
+        'log-activities' => 'Record activity notes against leads and customers.',
+        'manage-own-company' => "Administer settings and data within the user's own company.",
+        'assign-leads' => 'Assign leads to sales reps.',
+        'send-test-leads' => 'Send test leads to advertisers.',
+        'release-ftd' => 'Release first-time-deposit leads.',
+        'delete-leads' => 'Permanently delete leads.',
+        'delete-affiliates' => 'Permanently delete affiliates.',
+        'delete-advertisers' => 'Permanently delete advertisers.',
+        'delete-rejected-leads' => 'Permanently delete rejected leads.',
+    ];
+
     public function index(Request $request): Response
     {
         $this->authorize('viewAny', Role::class);
@@ -35,7 +56,10 @@ class RoleController extends Controller
                 ->latest()
                 ->paginate($this->perPage($request))
                 ->withQueryString(),
-            'permissions' => Permission::pluck('name'),
+            'permissions' => Permission::pluck('name')->map(fn ($name) => [
+                'name' => $name,
+                'description' => self::PERMISSION_DESCRIPTIONS[$name] ?? null,
+            ]),
             'filters' => [
                 'search' => $search,
                 'permission' => $permission,

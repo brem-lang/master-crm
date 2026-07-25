@@ -1,6 +1,9 @@
 <?php
 
+use App\Models\Advertiser;
+use App\Models\Affiliate;
 use App\Models\Company;
+use App\Models\Lead;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 
@@ -69,4 +72,91 @@ test('bulk delete requires a valid ids array', function () {
     ]);
 
     $response->assertSessionHasErrors('ids');
+});
+
+test('parent admin can bulk delete leads', function () {
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $leads = Lead::factory()->count(3)->create();
+
+    $response = $this->actingAs($parentAdmin)->delete(route('leads.bulk-destroy'), [
+        'ids' => $leads->pluck('id')->all(),
+    ]);
+
+    $response->assertRedirect();
+    expect(Lead::count())->toBe(0);
+});
+
+test('non parent admin cannot bulk delete leads', function () {
+    $company = Company::factory()->create();
+    $childAdmin = User::factory()->create(['company_id' => $company->id]);
+    $childAdmin->assignRole('child-admin');
+
+    $leads = Lead::factory()->count(2)->create(['company_id' => $company->id]);
+
+    $response = $this->actingAs($childAdmin)->delete(route('leads.bulk-destroy'), [
+        'ids' => $leads->pluck('id')->all(),
+    ]);
+
+    $response->assertForbidden();
+    expect(Lead::count())->toBe(2);
+});
+
+test('parent admin can bulk delete affiliates', function () {
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $affiliates = Affiliate::factory()->count(3)->create();
+
+    $response = $this->actingAs($parentAdmin)->delete(route('affiliates.bulk-destroy'), [
+        'ids' => $affiliates->pluck('id')->all(),
+    ]);
+
+    $response->assertRedirect();
+    expect(Affiliate::count())->toBe(0);
+});
+
+test('non parent admin cannot bulk delete affiliates', function () {
+    $company = Company::factory()->create();
+    $childAdmin = User::factory()->create(['company_id' => $company->id]);
+    $childAdmin->assignRole('child-admin');
+
+    $affiliates = Affiliate::factory()->count(2)->create(['company_id' => $company->id]);
+
+    $response = $this->actingAs($childAdmin)->delete(route('affiliates.bulk-destroy'), [
+        'ids' => $affiliates->pluck('id')->all(),
+    ]);
+
+    $response->assertForbidden();
+    expect(Affiliate::count())->toBe(2);
+});
+
+test('parent admin can bulk delete advertisers', function () {
+    $parentAdmin = User::factory()->create();
+    $parentAdmin->assignRole('parent-admin');
+
+    $advertisers = Advertiser::factory()->count(3)->create();
+
+    $response = $this->actingAs($parentAdmin)->delete(route('advertisers.bulk-destroy'), [
+        'ids' => $advertisers->pluck('id')->all(),
+    ]);
+
+    $response->assertRedirect();
+    expect(Advertiser::count())->toBe(0);
+});
+
+test('non parent admin cannot bulk delete advertisers', function () {
+    $company = Company::factory()->create();
+    $childAdmin = User::factory()->create(['company_id' => $company->id]);
+    $childAdmin->assignRole('child-admin');
+
+    $advertisers = Advertiser::factory()->count(2)->create(['company_id' => $company->id]);
+
+    $response = $this->actingAs($childAdmin)->delete(route('advertisers.bulk-destroy'), [
+        'ids' => $advertisers->pluck('id')->all(),
+    ]);
+
+    $response->assertForbidden();
+    expect(Advertiser::count())->toBe(2);
 });
