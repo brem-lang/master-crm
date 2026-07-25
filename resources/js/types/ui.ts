@@ -20,6 +20,15 @@ export type AuthLayoutProps = {
     description?: string;
 };
 
+export type LogEntry = {
+    id: number;
+    timestamp: string;
+    environment: string;
+    level: string;
+    message: string;
+    body: string;
+};
+
 export type Paginator<T> = {
     data: T[];
     links: { url: string | null; label: string; active: boolean }[];

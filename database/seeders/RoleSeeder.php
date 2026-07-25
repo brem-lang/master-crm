@@ -34,6 +34,7 @@ class RoleSeeder extends Seeder
         $deleteAffiliates = Permission::firstOrCreate(['name' => 'delete-affiliates']);
         $deleteAdvertisers = Permission::firstOrCreate(['name' => 'delete-advertisers']);
         $deleteRejectedLeads = Permission::firstOrCreate(['name' => 'delete-rejected-leads']);
+        $viewSystemLogs = Permission::firstOrCreate(['name' => 'view-system-logs']);
 
         Role::firstOrCreate(['name' => 'parent-admin'])
             ->syncPermissions([
@@ -51,6 +52,7 @@ class RoleSeeder extends Seeder
                 $deleteAffiliates,
                 $deleteAdvertisers,
                 $deleteRejectedLeads,
+                $viewSystemLogs,
             ]);
 
         Role::firstOrCreate(['name' => 'child-admin'])

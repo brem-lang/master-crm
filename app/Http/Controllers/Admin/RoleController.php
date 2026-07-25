@@ -36,6 +36,7 @@ class RoleController extends Controller
         'delete-affiliates' => 'Permanently delete affiliates.',
         'delete-advertisers' => 'Permanently delete advertisers.',
         'delete-rejected-leads' => 'Permanently delete rejected leads.',
+        'view-system-logs' => 'View the application log file for troubleshooting.',
     ];
 
     public function index(Request $request): Response

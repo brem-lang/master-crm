@@ -4,6 +4,7 @@ import {
     BadgeCheck,
     Building2,
     ClipboardList,
+    FileText,
     Handshake,
     ListChecks,
     Globe,
@@ -38,6 +39,7 @@ import { index as companyAuditLogIndex } from '@/routes/company-audit-log';
 import { index as companyHealthIndex } from '@/routes/company-health';
 import { index as directoryIndex } from '@/routes/directory';
 import { index as jobsIndex } from '@/routes/jobs';
+import { index as logsIndex } from '@/routes/logs';
 import {
     conversions as conversionsIndex,
     index as leadsIndex,
@@ -184,6 +186,15 @@ export function AppSidebar() {
                       title: 'Activity Log',
                       href: auditLogIndex(),
                       icon: ClipboardList,
+                  },
+              ]
+            : []),
+        ...(auth.permissions?.includes('view-system-logs')
+            ? [
+                  {
+                      title: 'Application Logs',
+                      href: logsIndex(),
+                      icon: FileText,
                   },
               ]
             : []),
