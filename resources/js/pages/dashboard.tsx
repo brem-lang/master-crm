@@ -143,7 +143,13 @@ function TopTable({
     );
 }
 
-function AnalyticsDashboard({ analytics }: { analytics: DashboardAnalytics }) {
+function AnalyticsDashboard({
+    analytics,
+    companies,
+}: {
+    analytics: DashboardAnalytics;
+    companies?: { id: number; name: string }[] | null;
+}) {
     const {
         stats,
         series,
@@ -237,6 +243,41 @@ function AnalyticsDashboard({ analytics }: { analytics: DashboardAnalytics }) {
                             </SelectGroup>
                         </SelectContent>
                     </Select>
+
+                    {companies && (
+                        <Select
+                            value={
+                                filters.company_id
+                                    ? String(filters.company_id)
+                                    : 'all'
+                            }
+                            onValueChange={(value) =>
+                                applyFilters({
+                                    company_id:
+                                        value === 'all' ? null : Number(value),
+                                })
+                            }
+                        >
+                            <SelectTrigger className="w-44">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectItem value="all">
+                                        All Companies
+                                    </SelectItem>
+                                    {companies.map((company) => (
+                                        <SelectItem
+                                            key={company.id}
+                                            value={String(company.id)}
+                                        >
+                                            {company.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                    )}
                 </CardContent>
             </Card>
 
@@ -446,17 +487,18 @@ function AnalyticsDashboard({ analytics }: { analytics: DashboardAnalytics }) {
 
 type PageProps = {
     analytics: DashboardAnalytics | null;
+    companies?: { id: number; name: string }[] | null;
 };
 
 export default function Dashboard() {
-    const { analytics } = usePage<PageProps>().props;
+    const { analytics, companies } = usePage<PageProps>().props;
 
     return (
         <>
             <Head title="Dashboard" />
 
             {analytics ? (
-                <AnalyticsDashboard analytics={analytics} />
+                <AnalyticsDashboard analytics={analytics} companies={companies} />
             ) : (
                 <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                     <div className="grid auto-rows-min gap-4 md:grid-cols-3">

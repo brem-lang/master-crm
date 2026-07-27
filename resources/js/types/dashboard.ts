@@ -29,6 +29,7 @@ export type DashboardFilters = {
     to: string | null;
     affiliate: string | null;
     advertiser: string | null;
+    company_id: number | null;
 };
 
 export type DashboardAnalytics = {

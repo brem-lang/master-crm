@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Company;
 use App\Models\Lead;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,8 +28,13 @@ class DashboardController extends Controller
             return Inertia::render('dashboard', ['analytics' => null]);
         }
 
+        $companyId = $companyScoped ? $user->company_id : ($request->integer('company_id') ?: null);
+
         return Inertia::render('dashboard', [
-            'analytics' => $this->buildAnalytics($request, $companyScoped ? $user->company_id : null),
+            'analytics' => $this->buildAnalytics($request, $companyId),
+            'companies' => $companyScoped
+                ? null
+                : Company::where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -131,6 +137,7 @@ class DashboardController extends Controller
                 'to' => $rangeMeta['to'],
                 'affiliate' => $affiliate,
                 'advertiser' => $advertiser,
+                'company_id' => $companyId,
             ],
             'affiliateOptions' => $base()
                 ->whereNotNull('affiliate_name')
