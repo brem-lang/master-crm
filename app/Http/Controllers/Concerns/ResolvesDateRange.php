@@ -13,7 +13,7 @@ trait ResolvesDateRange
 
     /**
      * @param  'today'|'yesterday'|'week'|'last_week'|'month'|'last_month'|'all'|'custom'  $default
-     * @return array{0: Carbon|null, 1: Carbon|null, 2: array{range: string, from: string|null, to: string|null}}
+     * @return array{0: CarbonInterface|null, 1: CarbonInterface|null, 2: array{range: string, from: string|null, to: string|null}}
      */
     private function resolveRange(Request $request, string $default = 'today'): array
     {
@@ -44,7 +44,7 @@ trait ResolvesDateRange
     }
 
     /**
-     * @return array{0: Carbon, 1: Carbon}
+     * @return array{0: CarbonInterface, 1: CarbonInterface}
      */
     private function resolveCustomRange(Request $request, CarbonInterface $now): array
     {

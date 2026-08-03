@@ -69,8 +69,11 @@ export type Lead = {
     offer_name: string | null;
     advertiser_name: string | null;
     sale_status: string | null;
+    live_lead_status: string | null;
     meta: Record<string, unknown> | null;
     lead_created_at: string | null;
+    created_at: string | null;
+    updated_at: string | null;
     company?: Pick<Company, 'id' | 'name'> | null;
     assignee?: Pick<User, 'id' | 'name'> | null;
 };

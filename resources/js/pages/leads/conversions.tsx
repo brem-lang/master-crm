@@ -202,7 +202,7 @@ export default function ConversionsIndex() {
                                 onChange={applyFilters}
                             />
 
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                            <div className="flex flex-nowrap items-center gap-4 overflow-x-auto">
                                 <SearchableSelect
                                     placeholder="Advertiser"
                                     value={filters.advertiser}
@@ -215,7 +215,7 @@ export default function ConversionsIndex() {
                                             label: name,
                                         }),
                                     )}
-                                    className="sm:w-full"
+                                    className="min-w-40 flex-1"
                                 />
 
                                 <MultiSelect
@@ -230,7 +230,7 @@ export default function ConversionsIndex() {
                                             label: code,
                                         }),
                                     )}
-                                    className="sm:w-full"
+                                    className="min-w-40 flex-1"
                                 />
 
                                 <SearchableSelect
@@ -245,7 +245,7 @@ export default function ConversionsIndex() {
                                             label: name,
                                         }),
                                     )}
-                                    className="sm:w-full"
+                                    className="min-w-40 flex-1"
                                 />
 
                                 <MultiSelect
@@ -260,7 +260,7 @@ export default function ConversionsIndex() {
                                             label: status,
                                         }),
                                     )}
-                                    className="sm:w-full"
+                                    className="min-w-40 flex-1"
                                 />
 
                                 <Select
@@ -272,7 +272,7 @@ export default function ConversionsIndex() {
                                         })
                                     }
                                 >
-                                    <SelectTrigger className="w-full">
+                                    <SelectTrigger className="min-w-40 flex-1">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -306,7 +306,7 @@ export default function ConversionsIndex() {
                                             })
                                         }
                                     >
-                                        <SelectTrigger className="w-full">
+                                        <SelectTrigger className="min-w-40 flex-1">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -345,7 +345,7 @@ export default function ConversionsIndex() {
                                             })
                                         }
                                     >
-                                        <SelectTrigger className="w-full">
+                                        <SelectTrigger className="min-w-40 flex-1">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>

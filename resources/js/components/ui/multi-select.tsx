@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown } from 'lucide-react';
+import { ChevronsUpDown } from 'lucide-react';
 import {
     Command,
     CommandEmpty,
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { Button } from './button';
+import { Checkbox } from './checkbox';
 
 type Option = { value: string; label: string };
 
@@ -23,6 +24,8 @@ type MultiSelectProps = {
     onChange: (values: string[]) => void;
     placeholder: string;
     className?: string;
+    /** When provided, the trigger renders as an icon-only button instead of placeholder text. */
+    icon?: React.ReactNode;
 };
 
 export function MultiSelect({
@@ -31,6 +34,7 @@ export function MultiSelect({
     onChange,
     placeholder,
     className,
+    icon,
 }: MultiSelectProps) {
     const toggle = (value: string) => {
         onChange(
@@ -43,21 +47,33 @@ export function MultiSelect({
     return (
         <Popover>
             <PopoverTrigger asChild>
-                <Button
-                    variant="outline"
-                    role="combobox"
-                    className={cn(
-                        'w-full justify-between font-normal sm:w-48',
-                        className,
-                    )}
-                >
-                    <span className="truncate">
-                        {selected.length > 0
-                            ? `${placeholder} (${selected.length})`
-                            : placeholder}
-                    </span>
-                    <ChevronsUpDown className="opacity-50" />
-                </Button>
+                {icon ? (
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        role="combobox"
+                        aria-label={placeholder}
+                        className={cn('shrink-0', className)}
+                    >
+                        {icon}
+                    </Button>
+                ) : (
+                    <Button
+                        variant="outline"
+                        role="combobox"
+                        className={cn(
+                            'w-full justify-between font-normal sm:w-48',
+                            className,
+                        )}
+                    >
+                        <span className="truncate">
+                            {selected.length > 0
+                                ? `${placeholder} (${selected.length})`
+                                : placeholder}
+                        </span>
+                        <ChevronsUpDown className="opacity-50" />
+                    </Button>
+                )}
             </PopoverTrigger>
             <PopoverContent className="w-56 p-0" align="start">
                 <Command>
@@ -73,13 +89,11 @@ export function MultiSelect({
                                     value={option.label}
                                     onSelect={() => toggle(option.value)}
                                 >
-                                    <Check
-                                        className={cn(
-                                            'size-4',
-                                            selected.includes(option.value)
-                                                ? 'opacity-100'
-                                                : 'opacity-0',
+                                    <Checkbox
+                                        checked={selected.includes(
+                                            option.value,
                                         )}
+                                        className="pointer-events-none"
                                     />
                                     {option.label}
                                 </CommandItem>

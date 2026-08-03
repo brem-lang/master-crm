@@ -1,6 +1,7 @@
 import { Form, Head, router, usePage } from '@inertiajs/react';
 import {
     Check,
+    Columns3,
     Copy,
     Download,
     Eye,
@@ -58,6 +59,7 @@ import {
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { useRowSelection } from '@/hooks/use-row-selection';
+import { cn } from '@/lib/utils';
 import {
     assign as assignLead,
     bulkAssign,
@@ -94,6 +96,13 @@ function CopyableLeadId({ externalId }: { externalId: string }) {
 const GREEN_BADGE_CLASS =
     'border-transparent bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
 
+const LIVE_LEAD_STATUS_OPTIONS = [
+    { value: 'green', label: '🟢 Green' },
+    { value: 'orange', label: '🟡 Orange' },
+    { value: 'light-red', label: '🟠 Light Red' },
+    { value: 'red', label: '🔴 Red' },
+];
+
 function statusBadgeClass(status: string): string {
     switch (status.toLowerCase()) {
         case 'rejected':
@@ -109,6 +118,136 @@ function statusBadgeClass(status: string): string {
     }
 }
 
+function metaText(lead: Lead, key: string): string {
+    const value = lead.meta?.[key];
+
+    return value === null || value === undefined || value === ''
+        ? '—'
+        : String(value);
+}
+
+function metaYesNo(lead: Lead, key: string): string {
+    return lead.meta?.[key] ? 'Yes' : '—';
+}
+
+function formatDate(value: string | null | undefined): string {
+    return value ? new Date(value).toLocaleString() : '—';
+}
+
+// Columns already rendered today stay visible by default; every other
+// column (mostly sourced from `lead.meta`) starts hidden until toggled on.
+const LEAD_COLUMNS: { key: string; label: string }[] = [
+    { key: 'first_name', label: 'First Name' },
+    { key: 'last_name', label: 'Last Name' },
+    { key: 'external_id', label: 'Lead ID' },
+    { key: 'mobile', label: 'Phone' },
+    { key: 'company', label: 'Company' },
+    { key: 'email', label: 'Email' },
+    { key: 'country_code', label: 'Country' },
+    { key: 'sale_status', label: 'Sale Status' },
+    { key: 'advertiser_name', label: 'Advertiser' },
+    { key: 'is_ftd', label: 'FTD' },
+    { key: 'affiliate_name', label: 'Affiliate' },
+    { key: 'assigned_to', label: 'Assigned to' },
+    { key: 'lead_created_at', label: 'Created' },
+    { key: 'request_id', label: 'Request ID' },
+    { key: 'ip_address', label: 'IP Address' },
+    { key: 'offer_name', label: 'Offer Name' },
+    { key: 'status', label: 'Status' },
+    { key: 'ftd_released', label: 'FTD Released' },
+    { key: 'created_at', label: 'Record Created' },
+    { key: 'updated_at', label: 'Updated At' },
+    { key: 'live_lead_status', label: 'Live Lead Status' },
+    { key: 'country', label: 'Country (Full)' },
+    { key: 'city', label: 'City' },
+    { key: 'locale', label: 'Locale' },
+    { key: 'user_agent', label: 'User Agent' },
+    { key: 'platform', label: 'Platform' },
+    { key: 'browser', label: 'Browser' },
+    { key: 'aff_sub', label: 'Aff Sub' },
+    { key: 'affiliate_id', label: 'Affiliate ID' },
+    { key: 'advertiser_id', label: 'Advertiser ID' },
+    { key: 'click_id', label: 'Click ID' },
+    { key: 'autologin', label: 'Autologin' },
+    { key: 'comment', label: 'Comment' },
+    { key: 'custom1', label: 'Custom 1' },
+    { key: 'custom2', label: 'Custom 2' },
+    { key: 'custom3', label: 'Custom 3' },
+    { key: 'custom4', label: 'Custom 4' },
+    { key: 'custom5', label: 'Custom 5' },
+    { key: 'ftd_date', label: 'FTD Date' },
+    { key: 'ftd_id', label: 'FTD ID' },
+    { key: 'ftd_released_at', label: 'FTD Released At' },
+    { key: 'ftd_released_by', label: 'FTD Released By' },
+    { key: 'is_live', label: 'Is Live' },
+    { key: 'needs_review', label: 'Needs Review' },
+    { key: 'is_proxy', label: 'Is Proxy' },
+    { key: 'fraud_score', label: 'Fraud Score' },
+    { key: 'fraud_flags', label: 'Fraud Flags' },
+    { key: 'time_to_click', label: 'Time To Click' },
+    { key: 'distributed_at', label: 'Distributed At' },
+    { key: 'live_lead_score', label: 'Live Lead Score' },
+    { key: 'click_ip', label: 'Click IP' },
+    { key: 'click_country', label: 'Click Country' },
+    { key: 'click_asn', label: 'Click ASN' },
+    { key: 'click_ua', label: 'Click UA' },
+    { key: 'submission_country', label: 'Submission Country' },
+    { key: 'submission_asn', label: 'Submission ASN' },
+    { key: 'submission_ua', label: 'Submission UA' },
+];
+
+const DEFAULT_VISIBLE_COLUMN_KEYS = new Set([
+    'first_name',
+    'last_name',
+    'external_id',
+    'mobile',
+    'company',
+    'email',
+    'country_code',
+    'sale_status',
+    'advertiser_name',
+    'is_ftd',
+    'affiliate_name',
+    'assigned_to',
+    'lead_created_at',
+]);
+
+const ALL_COLUMN_KEYS = LEAD_COLUMNS.map((c) => c.key);
+
+const DEFAULT_HIDDEN_COLUMNS = ALL_COLUMN_KEYS.filter(
+    (key) => !DEFAULT_VISIBLE_COLUMN_KEYS.has(key),
+);
+
+// Columns whose responsive visibility class matches an existing column
+// (undefined = always visible, no `hidden ...:table-cell`).
+const COLUMN_RESPONSIVE_CLASS: Record<string, string | undefined> = {
+    first_name: undefined,
+    last_name: undefined,
+    external_id: 'hidden lg:table-cell',
+    mobile: 'hidden lg:table-cell',
+    company: 'hidden md:table-cell',
+    email: 'hidden sm:table-cell',
+    country_code: 'hidden lg:table-cell',
+    sale_status: undefined,
+    advertiser_name: 'hidden lg:table-cell',
+    is_ftd: 'hidden md:table-cell',
+    affiliate_name: 'hidden lg:table-cell',
+    assigned_to: 'hidden md:table-cell',
+    lead_created_at: 'hidden md:table-cell',
+};
+
+function columnClassName(key: string): string {
+    return key in COLUMN_RESPONSIVE_CLASS
+        ? (COLUMN_RESPONSIVE_CLASS[key] ?? '')
+        : 'hidden lg:table-cell';
+}
+
+const CELL_EXTRA_CLASS: Record<string, string> = {
+    first_name: 'font-medium',
+    last_name: 'font-medium',
+    email: 'font-semibold',
+};
+
 type PageProps = {
     auth: Auth;
     byStatus: Record<string, number>;
@@ -116,14 +255,17 @@ type PageProps = {
     companies?: Pick<Company, 'id' | 'name'>[];
     salesReps: Pick<User, 'id' | 'name' | 'company_id'>[];
     viewLead: Lead | null;
+    hiddenColumns: string[] | null;
     filterOptions: {
         countries: string[];
         affiliates: string[];
         advertisers: string[];
+        saleStatuses: string[];
     };
     filters: {
         search: string;
-        status: string[];
+        sale_status: string[];
+        live_lead_status: string | null;
         country: string[];
         advertiser: string | null;
         affiliate: string | null;
@@ -138,19 +280,187 @@ type PageProps = {
 export default function LeadsIndex() {
     const {
         auth,
-        byStatus,
         leads,
         companies,
         salesReps,
         viewLead,
+        hiddenColumns,
         filterOptions,
         filters,
     } = usePage<PageProps>().props;
     const [search, setSearch] = useState(filters.search);
     const [viewingLead, setViewingLead] = useState<Lead | null>(null);
+    const [hidden, setHidden] = useState(
+        hiddenColumns ?? DEFAULT_HIDDEN_COLUMNS,
+    );
     const canAssignLeads = auth.permissions?.includes('assign-leads');
     const canDeleteLeads = auth.permissions?.includes('delete-leads');
     const selection = useRowSelection(leads.data, leads.current_page);
+
+    const visibleColumnKeys = ALL_COLUMN_KEYS.filter(
+        (key) => !hidden.includes(key),
+    );
+
+    const toggleColumns = (nextVisible: string[]) => {
+        const nextHidden = ALL_COLUMN_KEYS.filter(
+            (key) => !nextVisible.includes(key),
+        );
+        setHidden(nextHidden);
+        router.patch(
+            LeadsController.updateColumnPreferences().url,
+            { hidden_columns: nextHidden },
+            { preserveState: true, preserveScroll: true, only: [] },
+        );
+    };
+
+    const visibleColumns = LEAD_COLUMNS.filter(
+        (column) =>
+            !hidden.includes(column.key) &&
+            (column.key !== 'company' || !!companies) &&
+            (column.key !== 'assigned_to' || salesReps.length > 0),
+    );
+
+    const renderLeadCell = (key: string, lead: Lead) => {
+        switch (key) {
+            case 'first_name':
+                return lead.first_name ?? '—';
+            case 'last_name':
+                return lead.last_name ?? '—';
+            case 'external_id':
+                return <CopyableLeadId externalId={lead.external_id} />;
+            case 'mobile':
+                return lead.mobile ?? '—';
+            case 'company':
+                return lead.company?.name ?? '—';
+            case 'email':
+                return lead.email ?? '—';
+            case 'country_code':
+                return lead.country_code ?? '—';
+            case 'sale_status':
+                return lead.sale_status ? (
+                    <Badge
+                        variant="outline"
+                        className={statusBadgeClass(lead.sale_status)}
+                    >
+                        {lead.sale_status}
+                    </Badge>
+                ) : (
+                    '—'
+                );
+            case 'advertiser_name':
+                return lead.advertiser_name ? (
+                    <Badge variant="outline" className={GREEN_BADGE_CLASS}>
+                        {lead.advertiser_name}
+                    </Badge>
+                ) : (
+                    '—'
+                );
+            case 'is_ftd':
+                return lead.is_ftd ? (
+                    <Badge variant="outline" className={GREEN_BADGE_CLASS}>
+                        Yes
+                    </Badge>
+                ) : (
+                    '—'
+                );
+            case 'affiliate_name':
+                return lead.affiliate_name ?? '—';
+            case 'assigned_to': {
+                const companyReps = salesReps.filter(
+                    (rep) => rep.company_id === lead.company_id,
+                );
+
+                return canAssignLeads && companyReps.length > 0 ? (
+                    <Select
+                        value={
+                            lead.assigned_to
+                                ? String(lead.assigned_to)
+                                : 'unassigned'
+                        }
+                        onValueChange={(value) =>
+                            router.patch(
+                                assignLead(lead.id).url,
+                                {
+                                    assigned_to:
+                                        value === 'unassigned'
+                                            ? null
+                                            : Number(value),
+                                },
+                                { preserveScroll: true, preserveState: true },
+                            )
+                        }
+                    >
+                        <SelectTrigger className="w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <SelectItem value="unassigned">
+                                    Unassigned
+                                </SelectItem>
+                                {companyReps.map((rep) => (
+                                    <SelectItem
+                                        key={rep.id}
+                                        value={String(rep.id)}
+                                    >
+                                        {rep.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                ) : (
+                    (lead.assignee?.name ?? '—')
+                );
+            }
+            case 'lead_created_at':
+                return lead.lead_created_at
+                    ? new Date(lead.lead_created_at).toLocaleDateString()
+                    : '—';
+            case 'request_id':
+                return lead.request_id ?? '—';
+            case 'ip_address':
+                return lead.ip_address ?? '—';
+            case 'offer_name':
+                return lead.offer_name ?? '—';
+            case 'status':
+                return lead.status ? (
+                    <Badge
+                        variant="outline"
+                        className={statusBadgeClass(lead.status)}
+                    >
+                        {lead.status}
+                    </Badge>
+                ) : (
+                    '—'
+                );
+            case 'ftd_released':
+                return lead.ftd_released ? 'Yes' : '—';
+            case 'created_at':
+                return formatDate(lead.created_at);
+            case 'updated_at':
+                return formatDate(lead.updated_at);
+            case 'live_lead_status':
+                return (
+                    LIVE_LEAD_STATUS_OPTIONS.find(
+                        (option) => option.value === lead.live_lead_status,
+                    )?.label ?? '—'
+                );
+            case 'is_live':
+            case 'needs_review':
+            case 'is_proxy':
+                return metaYesNo(lead, key);
+            case 'fraud_flags': {
+                const flags = lead.meta?.fraud_flags;
+
+                return Array.isArray(flags) && flags.length > 0
+                    ? flags.join(', ')
+                    : '—';
+            }
+            default:
+                return metaText(lead, key);
+        }
+    };
 
     const applyFilters = (next: Partial<typeof filters>) => {
         router.get(
@@ -254,7 +564,7 @@ export default function LeadsIndex() {
                                 onChange={applyFilters}
                             />
 
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                            <div className="flex flex-nowrap items-center gap-4 overflow-x-auto">
                                 <SearchableSelect
                                     placeholder="Advertiser"
                                     value={filters.advertiser}
@@ -267,7 +577,7 @@ export default function LeadsIndex() {
                                             label: name,
                                         }),
                                     )}
-                                    className="sm:w-full"
+                                    className="min-w-40 flex-1"
                                 />
 
                                 <MultiSelect
@@ -282,7 +592,7 @@ export default function LeadsIndex() {
                                             label: code,
                                         }),
                                     )}
-                                    className="sm:w-full"
+                                    className="min-w-40 flex-1"
                                 />
 
                                 <SearchableSelect
@@ -297,22 +607,32 @@ export default function LeadsIndex() {
                                             label: name,
                                         }),
                                     )}
-                                    className="sm:w-full"
+                                    className="min-w-40 flex-1"
                                 />
 
                                 <MultiSelect
-                                    placeholder="Sale status"
-                                    selected={filters.status}
-                                    onChange={(status) =>
-                                        applyFilters({ status })
+                                    placeholder="All sale status"
+                                    selected={filters.sale_status}
+                                    onChange={(sale_status) =>
+                                        applyFilters({ sale_status })
                                     }
-                                    options={Object.keys(byStatus).map(
+                                    options={filterOptions.saleStatuses.map(
                                         (status) => ({
                                             value: status,
                                             label: status,
                                         }),
                                     )}
-                                    className="sm:w-full"
+                                    className="min-w-40 flex-1"
+                                />
+
+                                <SearchableSelect
+                                    placeholder="All Live Leads"
+                                    value={filters.live_lead_status}
+                                    onChange={(live_lead_status) =>
+                                        applyFilters({ live_lead_status })
+                                    }
+                                    options={LIVE_LEAD_STATUS_OPTIONS}
+                                    className="min-w-40 flex-1"
                                 />
 
                                 {companies && (
@@ -331,7 +651,7 @@ export default function LeadsIndex() {
                                             })
                                         }
                                     >
-                                        <SelectTrigger className="w-full">
+                                        <SelectTrigger className="min-w-40 flex-1">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -370,7 +690,7 @@ export default function LeadsIndex() {
                                             })
                                         }
                                     >
-                                        <SelectTrigger className="w-full">
+                                        <SelectTrigger className="min-w-40 flex-1">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -390,6 +710,17 @@ export default function LeadsIndex() {
                                         </SelectContent>
                                     </Select>
                                 )}
+
+                                <MultiSelect
+                                    placeholder="Columns"
+                                    selected={visibleColumnKeys}
+                                    onChange={toggleColumns}
+                                    options={LEAD_COLUMNS.map((c) => ({
+                                        value: c.key,
+                                        label: c.label,
+                                    }))}
+                                    icon={<Columns3 className="size-4" />}
+                                />
                             </div>
 
                             <div className="relative w-full">
@@ -468,43 +799,16 @@ export default function LeadsIndex() {
                                         />
                                     </TableHead>
                                 )}
-                                <TableHead>First Name</TableHead>
-                                <TableHead>Last Name</TableHead>
-                                <TableHead className="hidden lg:table-cell">
-                                    Lead ID
-                                </TableHead>
-                                <TableHead className="hidden lg:table-cell">
-                                    Phone
-                                </TableHead>
-                                {companies && (
-                                    <TableHead className="hidden md:table-cell">
-                                        Company
+                                {visibleColumns.map((column) => (
+                                    <TableHead
+                                        key={column.key}
+                                        className={columnClassName(
+                                            column.key,
+                                        )}
+                                    >
+                                        {column.label}
                                     </TableHead>
-                                )}
-                                <TableHead className="hidden sm:table-cell">
-                                    Email
-                                </TableHead>
-                                <TableHead className="hidden lg:table-cell">
-                                    Country
-                                </TableHead>
-                                <TableHead>Sale Status</TableHead>
-                                <TableHead className="hidden lg:table-cell">
-                                    Advertiser
-                                </TableHead>
-                                <TableHead className="hidden md:table-cell">
-                                    FTD
-                                </TableHead>
-                                <TableHead className="hidden lg:table-cell">
-                                    Affiliate
-                                </TableHead>
-                                {salesReps.length > 0 && (
-                                    <TableHead className="hidden md:table-cell">
-                                        Assigned to
-                                    </TableHead>
-                                )}
-                                <TableHead className="hidden md:table-cell">
-                                    Created
-                                </TableHead>
+                                ))}
                                 <TableHead className="w-px" />
                             </TableRow>
                         </TableHeader>
@@ -534,159 +838,17 @@ export default function LeadsIndex() {
                                             />
                                         </TableCell>
                                     )}
-                                    <TableCell className="font-medium">
-                                        {lead.first_name ?? '—'}
-                                    </TableCell>
-                                    <TableCell className="font-medium">
-                                        {lead.last_name ?? '—'}
-                                    </TableCell>
-                                    <TableCell className="hidden lg:table-cell">
-                                        <CopyableLeadId
-                                            externalId={lead.external_id}
-                                        />
-                                    </TableCell>
-                                    <TableCell className="hidden lg:table-cell">
-                                        {lead.mobile ?? '—'}
-                                    </TableCell>
-                                    {companies && (
-                                        <TableCell className="hidden md:table-cell">
-                                            {lead.company?.name ?? '—'}
+                                    {visibleColumns.map((column) => (
+                                        <TableCell
+                                            key={column.key}
+                                            className={cn(
+                                                columnClassName(column.key),
+                                                CELL_EXTRA_CLASS[column.key],
+                                            )}
+                                        >
+                                            {renderLeadCell(column.key, lead)}
                                         </TableCell>
-                                    )}
-                                    <TableCell className="hidden font-semibold sm:table-cell">
-                                        {lead.email ?? '—'}
-                                    </TableCell>
-                                    <TableCell className="hidden lg:table-cell">
-                                        {lead.country_code ?? '—'}
-                                    </TableCell>
-                                    <TableCell>
-                                        {lead.sale_status ? (
-                                            <Badge
-                                                variant="outline"
-                                                className={statusBadgeClass(
-                                                    lead.sale_status,
-                                                )}
-                                            >
-                                                {lead.sale_status}
-                                            </Badge>
-                                        ) : (
-                                            '—'
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="hidden lg:table-cell">
-                                        {lead.advertiser_name ? (
-                                            <Badge
-                                                variant="outline"
-                                                className={GREEN_BADGE_CLASS}
-                                            >
-                                                {lead.advertiser_name}
-                                            </Badge>
-                                        ) : (
-                                            '—'
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="hidden md:table-cell">
-                                        {lead.is_ftd ? (
-                                            <Badge
-                                                variant="outline"
-                                                className={GREEN_BADGE_CLASS}
-                                            >
-                                                Yes
-                                            </Badge>
-                                        ) : (
-                                            '—'
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="hidden lg:table-cell">
-                                        {lead.affiliate_name ?? '—'}
-                                    </TableCell>
-                                    {salesReps.length > 0 &&
-                                        (() => {
-                                            const companyReps =
-                                                salesReps.filter(
-                                                    (rep) =>
-                                                        rep.company_id ===
-                                                        lead.company_id,
-                                                );
-
-                                            return (
-                                                <TableCell className="hidden md:table-cell">
-                                                    {canAssignLeads &&
-                                                    companyReps.length > 0 ? (
-                                                        <Select
-                                                            value={
-                                                                lead.assigned_to
-                                                                    ? String(
-                                                                          lead.assigned_to,
-                                                                      )
-                                                                    : 'unassigned'
-                                                            }
-                                                            onValueChange={(
-                                                                value,
-                                                            ) =>
-                                                                router.patch(
-                                                                    assignLead(
-                                                                        lead.id,
-                                                                    ).url,
-                                                                    {
-                                                                        assigned_to:
-                                                                            value ===
-                                                                            'unassigned'
-                                                                                ? null
-                                                                                : Number(
-                                                                                      value,
-                                                                                  ),
-                                                                    },
-                                                                    {
-                                                                        preserveScroll: true,
-                                                                        preserveState: true,
-                                                                    },
-                                                                )
-                                                            }
-                                                        >
-                                                            <SelectTrigger className="w-40">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectGroup>
-                                                                    <SelectItem value="unassigned">
-                                                                        Unassigned
-                                                                    </SelectItem>
-                                                                    {companyReps.map(
-                                                                        (
-                                                                            rep,
-                                                                        ) => (
-                                                                            <SelectItem
-                                                                                key={
-                                                                                    rep.id
-                                                                                }
-                                                                                value={String(
-                                                                                    rep.id,
-                                                                                )}
-                                                                            >
-                                                                                {
-                                                                                    rep.name
-                                                                                }
-                                                                            </SelectItem>
-                                                                        ),
-                                                                    )}
-                                                                </SelectGroup>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    ) : (
-                                                        (lead.assignee?.name ??
-                                                        '—')
-                                                    )}
-                                                </TableCell>
-                                            );
-                                        })()}
-                                    <TableCell className="hidden md:table-cell">
-                                        {lead.lead_created_at
-                                            ? new Date(
-                                                  lead.lead_created_at,
-                                              ).toLocaleDateString()
-                                            : '—'}
-                                    </TableCell>
+                                    ))}
                                     <TableCell>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>

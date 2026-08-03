@@ -7,12 +7,14 @@ use App\Http\Controllers\Concerns\ResolvesDateRange;
 use App\Models\AuditLog;
 use App\Models\Company;
 use App\Models\Lead;
+use App\Models\LeadColumnPreference;
 use App\Models\User;
 use App\Services\ChildCrmDirectoryClient;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -22,6 +24,27 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 class LeadsController extends Controller
 {
     use ResolvesDateRange;
+
+    /**
+     * Every column key the leads table's column-visibility toggle is allowed
+     * to hide — the "existing" columns are hidden alongside the "new"
+     * meta-derived ones the same way, they just default to visible.
+     */
+    private const HIDDEN_COLUMN_KEYS = [
+        'first_name', 'last_name', 'external_id', 'mobile', 'company', 'email',
+        'country_code', 'sale_status', 'advertiser_name', 'is_ftd', 'affiliate_name',
+        'assigned_to', 'lead_created_at',
+        'request_id', 'ip_address', 'offer_name', 'status', 'ftd_released',
+        'created_at', 'updated_at', 'live_lead_status',
+        'country', 'city', 'locale', 'user_agent', 'platform', 'browser',
+        'aff_sub', 'affiliate_id', 'advertiser_id', 'click_id', 'autologin', 'comment',
+        'custom1', 'custom2', 'custom3', 'custom4', 'custom5',
+        'ftd_date', 'ftd_id', 'ftd_released_at', 'ftd_released_by',
+        'is_live', 'needs_review', 'is_proxy',
+        'fraud_score', 'fraud_flags', 'time_to_click', 'distributed_at', 'live_lead_score',
+        'click_ip', 'click_country', 'click_asn', 'click_ua',
+        'submission_country', 'submission_asn', 'submission_ua',
+    ];
 
     public function index(Request $request): Response
     {
@@ -46,7 +69,27 @@ class LeadsController extends Controller
             ? User::where('company_id', $companyId)->where('is_active', true)->role('sales-rep')->orderBy('name')->get(['id', 'name', 'company_id'])
             : ($allCompanies ? User::whereNotNull('company_id')->where('is_active', true)->role('sales-rep')->orderBy('name')->get(['id', 'name', 'company_id']) : []);
 
+        $metrics['hiddenColumns'] = LeadColumnPreference::where('user_id', $user->id)->value('hidden_columns');
+
         return Inertia::render('leads/index', $metrics);
+    }
+
+    /**
+     * Persist the requesting user's hidden-column set for the leads table.
+     */
+    public function updateColumnPreferences(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'hidden_columns' => ['present', 'array'],
+            'hidden_columns.*' => ['string', Rule::in(self::HIDDEN_COLUMN_KEYS)],
+        ]);
+
+        LeadColumnPreference::updateOrCreate(
+            ['user_id' => $request->user()->id],
+            ['hidden_columns' => $validated['hidden_columns']],
+        );
+
+        return back();
     }
 
     public function export(Request $request): BinaryFileResponse
@@ -370,6 +413,12 @@ class LeadsController extends Controller
                     ->unique()
                     ->sort()
                     ->values(),
+                'saleStatuses' => $scoped()->get(['meta'])
+                    ->pluck('sale_status')
+                    ->filter()
+                    ->unique()
+                    ->sort()
+                    ->values(),
             ],
             'filters' => [
                 ...$this->leadFilterEcho($request),
@@ -387,7 +436,7 @@ class LeadsController extends Controller
      * layered on top by `applyLeadFilters()` — kept separate so callers (e.g. the
      * `filterOptions` dropdown lists) can query the unfiltered baseline.
      */
-    private function baseLeadsQuery(?int $companyId, bool $rejectedOnly, ?Carbon $start, ?Carbon $end): Builder
+    private function baseLeadsQuery(?int $companyId, bool $rejectedOnly, ?CarbonInterface $start, ?CarbonInterface $end): Builder
     {
         return Lead::query()
             ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
@@ -401,13 +450,15 @@ class LeadsController extends Controller
     }
 
     /**
-     * @return array{search: string, status: list<string>, country: list<string>, advertiser: string|null, affiliate: string|null, assigned_to: int|null}
+     * @return array{search: string, status: list<string>, sale_status: list<string>, live_lead_status: string|null, country: list<string>, advertiser: string|null, affiliate: string|null, assigned_to: int|null}
      */
     private function leadFilterEcho(Request $request): array
     {
         return [
             'search' => trim((string) $request->query('search', '')),
             'status' => array_values(array_filter((array) $request->query('status', []))),
+            'sale_status' => array_values(array_filter((array) $request->query('sale_status', []))),
+            'live_lead_status' => $request->query('live_lead_status') ?: null,
             'country' => array_values(array_filter((array) $request->query('country', []))),
             'advertiser' => $request->query('advertiser') ?: null,
             'affiliate' => $request->query('affiliate') ?: null,
@@ -416,31 +467,52 @@ class LeadsController extends Controller
     }
 
     /**
-     * Layers search/status/country/advertiser/affiliate/assigned-to on top of an
-     * already-scoped ($scoped) query. `$scoped` is a closure rather than a Builder
-     * so it can be called fresh each time — once here for the advertiser bulk-match,
-     * once for the returned query — without one call's constraints bleeding into
-     * the other.
+     * Layers search/status/sale-status/live-lead-status/country/advertiser/
+     * affiliate/assigned-to on top of an already-scoped ($scoped) query.
+     * `$scoped` is a closure rather than a Builder so it can be called fresh
+     * each time — once here for the meta-derived bulk-match, once for the
+     * returned query — without one call's constraints bleeding into the other.
      */
     private function applyLeadFilters(\Closure $scoped, Request $request, ?int $companyId): Builder
     {
         $filters = $this->leadFilterEcho($request);
         $search = $filters['search'];
         $statuses = $filters['status'];
+        $saleStatuses = $filters['sale_status'];
+        $liveLeadStatus = $filters['live_lead_status'];
         $countries = $filters['country'];
         $advertiser = $filters['advertiser'];
         $affiliate = $filters['affiliate'];
         $assignedTo = $filters['assigned_to'];
 
-        // `meta->lead_distributions` is a JSON array, not portable to filter/aggregate
-        // in SQL across MySQL/SQLite (see Lead::advertiserNames()), so the advertiser
-        // filter is resolved by pulling id+meta for the scoped set and matching in
-        // PHP — the same approach DashboardController uses.
-        $advertiserLeadIds = $advertiser
+        // `meta->lead_distributions`, `meta->sale_status`, and
+        // `meta->live_lead_score` are JSON fields, not portable to
+        // filter/aggregate in SQL across MySQL/SQLite (see
+        // Lead::advertiserNames()), so the advertiser, sale-status, and
+        // live-lead-status filters are resolved by pulling id+meta for the
+        // scoped set once and matching all three in PHP — the same approach
+        // DashboardController uses.
+        $scopedLeads = ($advertiser || $saleStatuses !== [] || $liveLeadStatus)
             ? $scoped()->get(['id', 'meta'])
-                ->filter(fn (Lead $lead) => in_array($advertiser, $lead->advertiserNames(), true))
-                ->pluck('id')
             : null;
+
+        $leadIdSets = array_filter([
+            $advertiser
+                ? $scopedLeads->filter(fn (Lead $lead) => in_array($advertiser, $lead->advertiserNames(), true))->pluck('id')
+                : null,
+            $saleStatuses !== []
+                ? $scopedLeads->filter(fn (Lead $lead) => in_array($lead->sale_status, $saleStatuses, true))->pluck('id')
+                : null,
+            $liveLeadStatus
+                ? $scopedLeads->filter(fn (Lead $lead) => $lead->live_lead_status === $liveLeadStatus)->pluck('id')
+                : null,
+        ]);
+
+        $matchedLeadIds = array_reduce(
+            $leadIdSets,
+            fn (?Collection $carry, Collection $ids) => $carry === null ? $ids : $carry->intersect($ids)->values(),
+            null,
+        );
 
         return $scoped()
             ->when($search !== '', fn ($query) => $query->where(function ($query) use ($search) {
@@ -454,7 +526,7 @@ class LeadsController extends Controller
             ->when($statuses !== [], fn ($query) => $query->whereIn('status', $statuses))
             ->when($countries !== [], fn ($query) => $query->whereIn('country_code', $countries))
             ->when($affiliate, fn ($query) => $query->where('affiliate_name', $affiliate))
-            ->when($advertiserLeadIds !== null, fn ($query) => $query->whereIn('id', $advertiserLeadIds))
+            ->when($matchedLeadIds !== null, fn ($query) => $query->whereIn('id', $matchedLeadIds))
             ->when($assignedTo, fn ($query) => $query->where('assigned_to', $assignedTo))
             ->when(! $companyId, fn ($query) => $query->with('company:id,name'))
             ->with('assignee:id,name');

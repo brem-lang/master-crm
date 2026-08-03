@@ -34,6 +34,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read string|null $advertiser_name
  * @property-read string|null $sale_status
+ * @property-read string|null $live_lead_status
  */
 #[Fillable([
     'company_id',
@@ -64,7 +65,7 @@ class Lead extends Model
     /**
      * @var list<string>
      */
-    protected $appends = ['advertiser_name', 'sale_status'];
+    protected $appends = ['advertiser_name', 'sale_status', 'live_lead_status'];
 
     /**
      * @return BelongsTo<Company, $this>
@@ -123,6 +124,22 @@ class Lead extends Model
         $saleStatus = $this->meta['sale_status'] ?? null;
 
         return is_string($saleStatus) ? $saleStatus : null;
+    }
+
+    public function getLiveLeadStatusAttribute(): ?string
+    {
+        $score = $this->meta['live_lead_score'] ?? null;
+
+        if (! is_numeric($score)) {
+            return null;
+        }
+
+        return match (true) {
+            $score >= 80 => 'green',
+            $score >= 60 => 'orange',
+            $score >= 40 => 'light-red',
+            default => 'red',
+        };
     }
 
     /**
