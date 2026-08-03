@@ -23,6 +23,7 @@ import { DateRangeFilter } from '@/components/date-range-filter';
 import Heading from '@/components/heading';
 import { RefreshButton } from '@/components/refresh-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     ChartContainer,
     ChartLegend,
@@ -172,114 +173,93 @@ function AnalyticsDashboard({
     const advertiserConfig = advertiserChartConfig(topAdvertisers);
 
     return (
-        <div className="space-y-4 p-4">
-            <div className="flex items-center justify-between">
-                <Heading
-                    title="Dashboard"
-                    description="Performance overview and analytics"
-                />
-                <RefreshButton />
-            </div>
-
-            <Card className="gap-0 py-3">
-                <CardContent className="flex flex-wrap items-center gap-2 px-4">
-                    <DateRangeFilter
-                        filters={filters}
-                        onChange={applyFilters}
+        <div className="space-y-6 p-4">
+            <div className="flex flex-col gap-5">
+                <div className="flex items-center justify-between">
+                    <Heading
+                        className="mb-0"
+                        title="Dashboard"
+                        description="Performance overview and analytics"
                     />
+                    <RefreshButton />
+                </div>
 
-                    <Select
-                        value={filters.advertiser ?? 'all'}
-                        onValueChange={(value) =>
-                            applyFilters({
-                                advertiser: value === 'all' ? null : value,
-                            })
-                        }
-                    >
-                        <SelectTrigger className="w-44">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                <SelectItem value="all">
-                                    All Advertisers
-                                </SelectItem>
-                                {advertiserOptions.map((advertiser) => (
-                                    <SelectItem
-                                        key={advertiser}
-                                        value={advertiser}
-                                    >
-                                        {advertiser}
-                                    </SelectItem>
-                                ))}
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
+                <Card className="p-2!">
+                    <CardContent className="flex flex-col gap-4 p-2!">
+                        <DateRangeFilter
+                            filters={filters}
+                            onChange={applyFilters}
+                        />
 
-                    <Select
-                        value={filters.affiliate ?? 'all'}
-                        onValueChange={(value) =>
-                            applyFilters({
-                                affiliate: value === 'all' ? null : value,
-                            })
-                        }
-                    >
-                        <SelectTrigger className="w-44">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                <SelectItem value="all">
-                                    All Affiliates
-                                </SelectItem>
-                                {affiliateOptions.map((affiliate) => (
-                                    <SelectItem
-                                        key={affiliate}
-                                        value={affiliate}
-                                    >
-                                        {affiliate}
-                                    </SelectItem>
-                                ))}
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                            <SearchableSelect
+                                placeholder="Advertiser"
+                                value={filters.advertiser}
+                                onChange={(advertiser) =>
+                                    applyFilters({ advertiser })
+                                }
+                                options={advertiserOptions.map(
+                                    (advertiser) => ({
+                                        value: advertiser,
+                                        label: advertiser,
+                                    }),
+                                )}
+                                className="sm:w-full"
+                            />
 
-                    {companies && (
-                        <Select
-                            value={
-                                filters.company_id
-                                    ? String(filters.company_id)
-                                    : 'all'
-                            }
-                            onValueChange={(value) =>
-                                applyFilters({
-                                    company_id:
-                                        value === 'all' ? null : Number(value),
-                                })
-                            }
-                        >
-                            <SelectTrigger className="w-44">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    <SelectItem value="all">
-                                        All Companies
-                                    </SelectItem>
-                                    {companies.map((company) => (
-                                        <SelectItem
-                                            key={company.id}
-                                            value={String(company.id)}
-                                        >
-                                            {company.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    )}
-                </CardContent>
-            </Card>
+                            <SearchableSelect
+                                placeholder="Affiliate"
+                                value={filters.affiliate}
+                                onChange={(affiliate) =>
+                                    applyFilters({ affiliate })
+                                }
+                                options={affiliateOptions.map((affiliate) => ({
+                                    value: affiliate,
+                                    label: affiliate,
+                                }))}
+                                className="sm:w-full"
+                            />
+
+                            {companies && (
+                                <Select
+                                    value={
+                                        filters.company_id
+                                            ? String(filters.company_id)
+                                            : 'all'
+                                    }
+                                    onValueChange={(value) =>
+                                        applyFilters({
+                                            company_id:
+                                                value === 'all'
+                                                    ? null
+                                                    : Number(value),
+                                        })
+                                    }
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectGroup>
+                                            <SelectItem value="all">
+                                                All companies
+                                            </SelectItem>
+                                            {companies.map((company) => (
+                                                <SelectItem
+                                                    key={company.id}
+                                                    value={String(company.id)}
+                                                >
+                                                    {company.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectGroup>
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <MetricCard
