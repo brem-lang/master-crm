@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/leads', [LeadsController::class, 'index'])->name('leads.index');
+    Route::get('/leads/export', [LeadsController::class, 'export'])->name('leads.export');
     Route::get('/leads/rejected', [LeadsController::class, 'rejected'])->name('leads.rejected');
     Route::get('/leads/conversions', [LeadsController::class, 'conversions'])->name('leads.conversions');
     Route::patch('/leads/{lead}/assign', [LeadsController::class, 'assign'])->name('leads.assign');

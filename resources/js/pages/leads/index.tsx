@@ -1,5 +1,13 @@
 import { Form, Head, router, usePage } from '@inertiajs/react';
-import { Check, Copy, Eye, MoreHorizontal, Search, Trash2 } from 'lucide-react';
+import {
+    Check,
+    Copy,
+    Download,
+    Eye,
+    MoreHorizontal,
+    Search,
+    Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import LeadsController from '@/actions/App/Http/Controllers/LeadsController';
 import { BulkAssignBar } from '@/components/bulk-assign-bar';
@@ -53,6 +61,7 @@ import { useRowSelection } from '@/hooks/use-row-selection';
 import {
     assign as assignLead,
     bulkAssign,
+    exportMethod as exportLeads,
     index as leadsIndex,
 } from '@/routes/leads';
 import type { Auth, Company, Lead, Paginator, User } from '@/types';
@@ -187,7 +196,45 @@ export default function LeadsIndex() {
                                     : "Leads pulled from your company's CRM"
                             }
                         />
-                        <RefreshButton />
+                        <div className="flex items-center gap-2">
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline">
+                                        <Download className="size-4" />
+                                        Export
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogTitle>Export leads?</DialogTitle>
+                                    <DialogDescription>
+                                        This will export all leads matching your
+                                        current filters to an Excel (.xlsx)
+                                        file.
+                                    </DialogDescription>
+                                    <DialogFooter className="gap-2">
+                                        <DialogClose asChild>
+                                            <Button variant="secondary">
+                                                Cancel
+                                            </Button>
+                                        </DialogClose>
+                                        <DialogClose asChild>
+                                            <Button
+                                                onClick={() => {
+                                                    window.location.href =
+                                                        exportLeads({
+                                                            query: filters,
+                                                        }).url;
+                                                }}
+                                            >
+                                                <Download className="size-4" />
+                                                Export
+                                            </Button>
+                                        </DialogClose>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                            <RefreshButton />
+                        </div>
                     </div>
 
                     {/* {Object.keys(byStatus).length > 0 && (
