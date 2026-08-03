@@ -32,6 +32,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $synced_to_parent_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property-read string|null $advertiser_name
+ * @property-read string|null $sale_status
  */
 #[Fillable([
     'company_id',
@@ -60,6 +62,11 @@ class Lead extends Model
     use HasFactory;
 
     /**
+     * @var list<string>
+     */
+    protected $appends = ['advertiser_name', 'sale_status'];
+
+    /**
      * @return BelongsTo<Company, $this>
      */
     public function company(): BelongsTo
@@ -73,6 +80,49 @@ class Lead extends Model
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    /**
+     * `meta->lead_distributions` is a JSON array, which isn't portable to
+     * query/aggregate in SQL across MySQL/SQLite — always read it off the
+     * already-loaded `meta` attribute in PHP instead.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function distributions(): array
+    {
+        $distributions = $this->meta['lead_distributions'] ?? [];
+
+        return is_array($distributions) ? $distributions : [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function advertiserNames(): array
+    {
+        return collect($this->distributions())
+            ->map(fn ($distribution) => $distribution['advertisers']['name'] ?? null)
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    public function primaryAdvertiserName(): ?string
+    {
+        return $this->advertiserNames()[0] ?? null;
+    }
+
+    public function getAdvertiserNameAttribute(): ?string
+    {
+        return $this->primaryAdvertiserName();
+    }
+
+    public function getSaleStatusAttribute(): ?string
+    {
+        $saleStatus = $this->meta['sale_status'] ?? null;
+
+        return is_string($saleStatus) ? $saleStatus : null;
     }
 
     /**

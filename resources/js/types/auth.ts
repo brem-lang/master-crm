@@ -67,6 +67,8 @@ export type Lead = {
     is_ftd: boolean;
     ftd_released: boolean;
     offer_name: string | null;
+    advertiser_name: string | null;
+    sale_status: string | null;
     meta: Record<string, unknown> | null;
     lead_created_at: string | null;
     company?: Pick<Company, 'id' | 'name'> | null;

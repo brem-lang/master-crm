@@ -2,20 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ResolvesDateRange;
 use App\Models\Company;
 use App\Models\Lead;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
-use Throwable;
 
 class DashboardController extends Controller
 {
-    private const RANGES = ['today', 'yesterday', 'week', 'last_week', 'month', 'last_month', 'all', 'custom'];
+    use ResolvesDateRange;
 
     public function index(Request $request): Response
     {
@@ -63,7 +62,7 @@ class DashboardController extends Controller
         $advertiserIndex = $this->tallyByAdvertiser($bulk);
 
         $advertiserLeadIds = $advertiser
-            ? $bulk->filter(fn (Lead $lead) => in_array($advertiser, $this->advertiserNames($lead), true))->pluck('id')
+            ? $bulk->filter(fn (Lead $lead) => in_array($advertiser, $lead->advertiserNames(), true))->pluck('id')
             : null;
 
         $filteredBulk = $advertiserLeadIds ? $bulk->whereIn('id', $advertiserLeadIds) : $bulk;
@@ -150,52 +149,6 @@ class DashboardController extends Controller
     }
 
     /**
-     * @return array{0: Carbon|null, 1: Carbon|null, 2: array{range: string, from: string|null, to: string|null}}
-     */
-    private function resolveRange(Request $request): array
-    {
-        $range = $request->query('range', 'today');
-
-        if (! in_array($range, self::RANGES, true)) {
-            $range = 'today';
-        }
-
-        $now = now();
-
-        [$start, $end] = match ($range) {
-            'today' => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
-            'yesterday' => [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()],
-            'week' => [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()],
-            'last_week' => [$now->copy()->subWeek()->startOfWeek(), $now->copy()->subWeek()->endOfWeek()],
-            'month' => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
-            'last_month' => [$now->copy()->subMonthNoOverflow()->startOfMonth(), $now->copy()->subMonthNoOverflow()->endOfMonth()],
-            'all' => [null, null],
-            'custom' => $this->resolveCustomRange($request, $now),
-        };
-
-        return [$start, $end, [
-            'range' => $range,
-            'from' => $start?->toDateString(),
-            'to' => $end?->toDateString(),
-        ]];
-    }
-
-    /**
-     * @return array{0: Carbon, 1: Carbon}
-     */
-    private function resolveCustomRange(Request $request, CarbonInterface $now): array
-    {
-        try {
-            $start = $request->query('from') ? Carbon::parse($request->query('from'))->startOfDay() : $now->copy()->startOfDay();
-            $end = $request->query('to') ? Carbon::parse($request->query('to'))->endOfDay() : $now->copy()->endOfDay();
-        } catch (Throwable) {
-            return [$now->copy()->startOfDay(), $now->copy()->endOfDay()];
-        }
-
-        return $start->gt($end) ? [$end->copy()->startOfDay(), $start->copy()->endOfDay()] : [$start, $end];
-    }
-
-    /**
      * Tally sent/FTD counts per advertiser name from `meta->lead_distributions`.
      *
      * @param  Collection<int, Lead>  $leads
@@ -208,7 +161,7 @@ class DashboardController extends Controller
         foreach ($leads as $lead) {
             $seenForLead = [];
 
-            foreach ($this->distributions($lead) as $distribution) {
+            foreach ($lead->distributions() as $distribution) {
                 $name = $distribution['advertisers']['name'] ?? null;
 
                 if (! $name || in_array($name, $seenForLead, true)) {
@@ -241,7 +194,7 @@ class DashboardController extends Controller
         $failed = 0;
 
         foreach ($leads as $lead) {
-            $distributions = $this->distributions($lead);
+            $distributions = $lead->distributions();
 
             if ($distributions === []) {
                 continue;
@@ -287,28 +240,6 @@ class DashboardController extends Controller
         ksort($buckets);
 
         return array_values($buckets);
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function distributions(Lead $lead): array
-    {
-        $distributions = $lead->meta['lead_distributions'] ?? [];
-
-        return is_array($distributions) ? $distributions : [];
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function advertiserNames(Lead $lead): array
-    {
-        return collect($this->distributions($lead))
-            ->map(fn ($d) => $d['advertisers']['name'] ?? null)
-            ->filter()
-            ->values()
-            ->all();
     }
 
     /**

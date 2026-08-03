@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ResolvesDateRange;
 use App\Models\AuditLog;
 use App\Models\Company;
 use App\Models\Lead;
@@ -15,6 +16,8 @@ use Inertia\Response;
 
 class LeadsController extends Controller
 {
+    use ResolvesDateRange;
+
     public function index(Request $request): Response
     {
         $user = $request->user();
@@ -299,9 +302,14 @@ class LeadsController extends Controller
     private function leadsMetrics(Request $request, ?int $companyId, bool $rejectedOnly = false): array
     {
         $search = trim((string) $request->query('search', ''));
-        $status = $request->query('status');
+        $statuses = array_values(array_filter((array) $request->query('status', [])));
+        $countries = array_values(array_filter((array) $request->query('country', [])));
+        $advertiser = $request->query('advertiser') ?: null;
+        $affiliate = $request->query('affiliate') ?: null;
         $assignedTo = $request->integer('assigned_to') ?: null;
         $viewLeadId = $request->integer('view_lead') ?: null;
+
+        [$start, $end, $rangeMeta] = $this->resolveRange($request, default: 'all');
 
         $scoped = fn () => Lead::query()
             ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
@@ -309,7 +317,9 @@ class LeadsController extends Controller
                 $rejectedOnly,
                 fn ($query) => $query->where('status', 'rejected'),
                 fn ($query) => $query->where(fn ($query) => $query->where('status', '!=', 'rejected')->orWhereNull('status')),
-            );
+            )
+            ->when($start, fn ($query) => $query->where('lead_created_at', '>=', $start))
+            ->when($end, fn ($query) => $query->where('lead_created_at', '<=', $end));
 
         $stats = $scoped()
             ->selectRaw('
@@ -317,6 +327,16 @@ class LeadsController extends Controller
                 sum(case when is_ftd = 1 then 1 else 0 end) as ftd
             ')
             ->first();
+
+        // `meta->lead_distributions` is a JSON array, not portable to filter/aggregate
+        // in SQL across MySQL/SQLite (see Lead::advertiserNames()), so the advertiser
+        // filter and its dropdown options are resolved by pulling id+meta for the
+        // scoped set and matching in PHP — the same approach DashboardController uses.
+        $advertiserLeadIds = $advertiser
+            ? $scoped()->get(['id', 'meta'])
+                ->filter(fn (Lead $lead) => in_array($advertiser, $lead->advertiserNames(), true))
+                ->pluck('id')
+            : null;
 
         return [
             'total' => (int) $stats->total,
@@ -330,9 +350,15 @@ class LeadsController extends Controller
                 ->when($search !== '', fn ($query) => $query->where(function ($query) use ($search) {
                     $query->where('first_name', 'like', "%{$search}%")
                         ->orWhere('last_name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%");
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('mobile', 'like', "%{$search}%")
+                        ->orWhere('request_id', 'like', "%{$search}%")
+                        ->orWhere('ip_address', 'like', "%{$search}%");
                 }))
-                ->when($status, fn ($query) => $query->where('status', $status))
+                ->when($statuses !== [], fn ($query) => $query->whereIn('status', $statuses))
+                ->when($countries !== [], fn ($query) => $query->whereIn('country_code', $countries))
+                ->when($affiliate, fn ($query) => $query->where('affiliate_name', $affiliate))
+                ->when($advertiserLeadIds !== null, fn ($query) => $query->whereIn('id', $advertiserLeadIds))
                 ->when($assignedTo, fn ($query) => $query->where('assigned_to', $assignedTo))
                 ->when(! $companyId, fn ($query) => $query->with('company:id,name'))
                 ->with('assignee:id,name')
@@ -340,11 +366,36 @@ class LeadsController extends Controller
                 ->paginate($this->perPage($request))
                 ->withQueryString(),
             'viewLead' => $viewLeadId ? Lead::with(['company:id,name', 'assignee:id,name'])->find($viewLeadId) : null,
+            'filterOptions' => [
+                'countries' => $scoped()
+                    ->whereNotNull('country_code')
+                    ->where('country_code', '!=', '')
+                    ->distinct()
+                    ->orderBy('country_code')
+                    ->pluck('country_code'),
+                'affiliates' => $scoped()
+                    ->whereNotNull('affiliate_name')
+                    ->where('affiliate_name', '!=', '')
+                    ->distinct()
+                    ->orderBy('affiliate_name')
+                    ->pluck('affiliate_name'),
+                'advertisers' => $scoped()->get(['meta'])
+                    ->flatMap(fn (Lead $lead) => $lead->advertiserNames())
+                    ->unique()
+                    ->sort()
+                    ->values(),
+            ],
             'filters' => [
                 'search' => $search,
-                'status' => $status,
+                'status' => $statuses,
+                'country' => $countries,
+                'advertiser' => $advertiser,
+                'affiliate' => $affiliate,
                 'company_id' => $companyId,
                 'assigned_to' => $assignedTo,
+                'range' => $rangeMeta['range'],
+                'from' => $rangeMeta['from'],
+                'to' => $rangeMeta['to'],
             ],
         ];
     }

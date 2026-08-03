@@ -18,8 +18,8 @@ import {
     XAxis,
     YAxis,
 } from 'recharts';
-import { DateRangeFilter } from '@/components/dashboard/date-range-filter';
 import { MetricCard } from '@/components/dashboard/metric-card';
+import { DateRangeFilter } from '@/components/date-range-filter';
 import Heading from '@/components/heading';
 import { RefreshButton } from '@/components/refresh-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

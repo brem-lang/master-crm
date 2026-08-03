@@ -24,7 +24,7 @@ const PER_PAGE_OPTIONS = ['10', '25', '50', '100'];
 type Props = {
     paginator: Paginator<unknown>;
     /** Current filter query params to preserve when the per-page selection changes. */
-    filters?: Record<string, string | number | undefined | null>;
+    filters?: Record<string, string | number | string[] | undefined | null>;
 };
 
 export function DataPagination({ paginator, filters = {} }: Props) {
