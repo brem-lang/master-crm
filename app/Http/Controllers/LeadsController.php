@@ -464,20 +464,24 @@ class LeadsController extends Controller
      * Build FTD conversion metrics/list for a single company, or across all
      * companies when `$companyId` is null (parent admin view). Every row is
      * already `is_ftd = true`; `released` further narrows to whether
-     * `ftd_released` has been flipped on.
+     * `ftd_released` has been flipped on. Reuses `applyLeadFilters()` for the
+     * search/status/country/advertiser/affiliate/assigned-to filters shared
+     * with the Leads/Rejected pages, layering `released` on top.
      *
      * @return array<string, mixed>
      */
     private function conversionsMetrics(Request $request, ?int $companyId): array
     {
-        $search = trim((string) $request->query('search', ''));
         $released = $request->query('released');
-        $assignedTo = $request->integer('assigned_to') ?: null;
         $viewLeadId = $request->integer('view_lead') ?: null;
+
+        [$start, $end, $rangeMeta] = $this->resolveRange($request, default: 'all');
 
         $scoped = fn () => Lead::query()
             ->where('is_ftd', true)
-            ->when($companyId, fn ($query) => $query->where('company_id', $companyId));
+            ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
+            ->when($start, fn ($query) => $query->where('lead_created_at', '>=', $start))
+            ->when($end, fn ($query) => $query->where('lead_created_at', '<=', $end));
 
         $stats = $scoped()
             ->selectRaw('
@@ -490,27 +494,45 @@ class LeadsController extends Controller
             'total' => (int) $stats->total,
             'released' => (int) $stats->released,
             'pending' => (int) $stats->total - (int) $stats->released,
-            'leads' => $scoped()
-                ->when($search !== '', fn ($query) => $query->where(function ($query) use ($search) {
-                    $query->where('first_name', 'like', "%{$search}%")
-                        ->orWhere('last_name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%");
-                }))
+            'byStatus' => $scoped()
+                ->select('status')
+                ->selectRaw('count(*) as count')
+                ->groupBy('status')
+                ->pluck('count', 'status'),
+            'leads' => $this->applyLeadFilters($scoped, $request, $companyId)
                 ->when($released === 'released', fn ($query) => $query->where('ftd_released', true))
                 ->when($released === 'pending', fn ($query) => $query->where('ftd_released', false))
-                ->when($assignedTo, fn ($query) => $query->where('assigned_to', $assignedTo))
-                ->when(! $companyId, fn ($query) => $query->with('company:id,name'))
-                ->with('assignee:id,name')
                 ->orderBy('ftd_released')
                 ->latest('lead_created_at')
                 ->paginate($this->perPage($request))
                 ->withQueryString(),
             'viewLead' => $viewLeadId ? Lead::with(['company:id,name', 'assignee:id,name'])->find($viewLeadId) : null,
+            'filterOptions' => [
+                'countries' => $scoped()
+                    ->whereNotNull('country_code')
+                    ->where('country_code', '!=', '')
+                    ->distinct()
+                    ->orderBy('country_code')
+                    ->pluck('country_code'),
+                'affiliates' => $scoped()
+                    ->whereNotNull('affiliate_name')
+                    ->where('affiliate_name', '!=', '')
+                    ->distinct()
+                    ->orderBy('affiliate_name')
+                    ->pluck('affiliate_name'),
+                'advertisers' => $scoped()->get(['meta'])
+                    ->flatMap(fn (Lead $lead) => $lead->advertiserNames())
+                    ->unique()
+                    ->sort()
+                    ->values(),
+            ],
             'filters' => [
-                'search' => $search,
+                ...$this->leadFilterEcho($request),
                 'released' => $released,
                 'company_id' => $companyId,
-                'assigned_to' => $assignedTo,
+                'range' => $rangeMeta['range'],
+                'from' => $rangeMeta['from'],
+                'to' => $rangeMeta['to'],
             ],
         ];
     }

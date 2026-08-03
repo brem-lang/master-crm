@@ -1,14 +1,22 @@
 import { Form, Head, router, usePage } from '@inertiajs/react';
-import { BadgeCheck, Eye, MoreHorizontal, Search } from 'lucide-react';
+import {
+    BadgeCheck,
+    Check,
+    Copy,
+    Eye,
+    MoreHorizontal,
+    Search,
+} from 'lucide-react';
 import { useState } from 'react';
 import LeadsController from '@/actions/App/Http/Controllers/LeadsController';
 import { DataPagination } from '@/components/data-pagination';
+import { DateRangeFilter } from '@/components/date-range-filter';
 import Heading from '@/components/heading';
 import { LeadDetailsDialog } from '@/components/lead-details-dialog';
 import { RefreshButton } from '@/components/refresh-button';
-import { StatCard } from '@/components/stat-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
     Dialog,
     DialogClose,
@@ -25,6 +33,8 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { MultiSelect } from '@/components/ui/multi-select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
     SelectContent,
@@ -41,43 +51,96 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { useClipboard } from '@/hooks/use-clipboard';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { conversions as conversionsIndex } from '@/routes/leads';
 import type { Auth, Company, Lead, Paginator, User } from '@/types';
 
+function CopyableLeadId({ externalId }: { externalId: string }) {
+    const [copiedText, copy] = useClipboard();
+    const isCopied = copiedText === externalId;
+
+    return (
+        <div className="flex items-center gap-1.5">
+            <code className="text-xs">{externalId.slice(0, 8)}</code>
+            <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-6 shrink-0"
+                aria-label="Copy lead ID"
+                onClick={() => copy(externalId)}
+            >
+                {isCopied ? (
+                    <Check className="size-3.5" />
+                ) : (
+                    <Copy className="size-3.5" />
+                )}
+            </Button>
+        </div>
+    );
+}
+
+const GREEN_BADGE_CLASS =
+    'border-transparent bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+
+function statusBadgeClass(status: string): string {
+    switch (status.toLowerCase()) {
+        case 'rejected':
+            return 'border-transparent bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+        case 'converted':
+            return GREEN_BADGE_CLASS;
+        case 'contacted':
+            return 'border-transparent bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+        case 'new':
+            return 'border-transparent bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400';
+        default:
+            return 'border-transparent bg-muted text-muted-foreground';
+    }
+}
+
 function releasedBadgeClass(released: boolean): string {
     return released
-        ? 'border-transparent bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+        ? GREEN_BADGE_CLASS
         : 'border-transparent bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400';
 }
 
 type PageProps = {
     auth: Auth;
-    total: number;
-    released: number;
-    pending: number;
+    byStatus: Record<string, number>;
     leads: Paginator<Lead>;
     companies?: Pick<Company, 'id' | 'name'>[];
     salesReps: Pick<User, 'id' | 'name' | 'company_id'>[];
     viewLead: Lead | null;
+    filterOptions: {
+        countries: string[];
+        affiliates: string[];
+        advertisers: string[];
+    };
     filters: {
         search: string;
+        status: string[];
+        country: string[];
+        advertiser: string | null;
+        affiliate: string | null;
         released: string | null;
         company_id: number | null;
         assigned_to: number | null;
+        range: string;
+        from: string | null;
+        to: string | null;
     };
 };
 
 export default function ConversionsIndex() {
     const {
         auth,
-        total,
-        released,
-        pending,
+        byStatus,
         leads,
         companies,
         salesReps,
         viewLead,
+        filterOptions,
         filters,
     } = usePage<PageProps>().props;
     const canReleaseFtd = auth.permissions?.includes('release-ftd');
@@ -118,136 +181,220 @@ export default function ConversionsIndex() {
             <Head title="Conversions (FTD)" />
 
             <div className="space-y-6 p-4">
-                <div className="flex items-center justify-between">
-                    <Heading
-                        title="Conversions (FTD)"
-                        description={
-                            companies
-                                ? "First-time deposits from all companies' CRMs"
-                                : "First-time deposits from your company's CRM"
-                        }
-                    />
-                    <RefreshButton />
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-3">
-                    <StatCard label="Total FTD" value={total} />
-                    <StatCard label="Released" value={released} />
-                    <StatCard label="Pending" value={pending} />
-                </div>
-
-                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                    <div className="relative w-full sm:max-w-xs">
-                        <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={search}
-                            onChange={(event) => {
-                                setSearch(event.target.value);
-                                debouncedSearch(event.target.value);
-                            }}
-                            placeholder="Search by name or email…"
-                            className="pl-8"
+                <div className="flex flex-col gap-5">
+                    <div className="flex items-center justify-between">
+                        <Heading
+                            className="mb-0"
+                            title="Conversions (FTD)"
+                            description={
+                                companies
+                                    ? "First-time deposits from all companies' CRMs"
+                                    : "First-time deposits from your company's CRM"
+                            }
                         />
+                        <RefreshButton />
                     </div>
 
-                    <Select
-                        value={filters.released ?? 'all'}
-                        onValueChange={(value) =>
-                            applyFilters({
-                                released: value === 'all' ? null : value,
-                            })
-                        }
-                    >
-                        <SelectTrigger className="w-full sm:w-48">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                <SelectItem value="all">All FTDs</SelectItem>
-                                <SelectItem value="released">
-                                    Released
-                                </SelectItem>
-                                <SelectItem value="pending">Pending</SelectItem>
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
+                    <Card className="p-2!">
+                        <CardContent className="flex flex-col gap-4 p-2!">
+                            <DateRangeFilter
+                                filters={filters}
+                                onChange={applyFilters}
+                            />
 
-                    {companies && (
-                        <Select
-                            value={
-                                filters.company_id
-                                    ? String(filters.company_id)
-                                    : 'all'
-                            }
-                            onValueChange={(value) =>
-                                applyFilters({
-                                    company_id:
-                                        value === 'all' ? null : Number(value),
-                                })
-                            }
-                        >
-                            <SelectTrigger className="w-full sm:w-48">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    <SelectItem value="all">
-                                        All companies
-                                    </SelectItem>
-                                    {companies.map((company) => (
-                                        <SelectItem
-                                            key={company.id}
-                                            value={String(company.id)}
-                                        >
-                                            {company.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    )}
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                                <SearchableSelect
+                                    placeholder="Advertiser"
+                                    value={filters.advertiser}
+                                    onChange={(advertiser) =>
+                                        applyFilters({ advertiser })
+                                    }
+                                    options={filterOptions.advertisers.map(
+                                        (name) => ({
+                                            value: name,
+                                            label: name,
+                                        }),
+                                    )}
+                                    className="sm:w-full"
+                                />
 
-                    {salesReps.length > 0 && (
-                        <Select
-                            value={
-                                filters.assigned_to
-                                    ? String(filters.assigned_to)
-                                    : 'all'
-                            }
-                            onValueChange={(value) =>
-                                applyFilters({
-                                    assigned_to:
-                                        value === 'all' ? null : Number(value),
-                                })
-                            }
-                        >
-                            <SelectTrigger className="w-full sm:w-48">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    <SelectItem value="all">
-                                        All reps
-                                    </SelectItem>
-                                    {salesReps.map((rep) => (
-                                        <SelectItem
-                                            key={rep.id}
-                                            value={String(rep.id)}
-                                        >
-                                            {rep.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    )}
+                                <MultiSelect
+                                    placeholder="Country"
+                                    selected={filters.country}
+                                    onChange={(country) =>
+                                        applyFilters({ country })
+                                    }
+                                    options={filterOptions.countries.map(
+                                        (code) => ({
+                                            value: code,
+                                            label: code,
+                                        }),
+                                    )}
+                                    className="sm:w-full"
+                                />
+
+                                <SearchableSelect
+                                    placeholder="Affiliate"
+                                    value={filters.affiliate}
+                                    onChange={(affiliate) =>
+                                        applyFilters({ affiliate })
+                                    }
+                                    options={filterOptions.affiliates.map(
+                                        (name) => ({
+                                            value: name,
+                                            label: name,
+                                        }),
+                                    )}
+                                    className="sm:w-full"
+                                />
+
+                                <MultiSelect
+                                    placeholder="Sale status"
+                                    selected={filters.status}
+                                    onChange={(status) =>
+                                        applyFilters({ status })
+                                    }
+                                    options={Object.keys(byStatus).map(
+                                        (status) => ({
+                                            value: status,
+                                            label: status,
+                                        }),
+                                    )}
+                                    className="sm:w-full"
+                                />
+
+                                <Select
+                                    value={filters.released ?? 'all'}
+                                    onValueChange={(value) =>
+                                        applyFilters({
+                                            released:
+                                                value === 'all' ? null : value,
+                                        })
+                                    }
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectGroup>
+                                            <SelectItem value="all">
+                                                All FTDs
+                                            </SelectItem>
+                                            <SelectItem value="released">
+                                                Released
+                                            </SelectItem>
+                                            <SelectItem value="pending">
+                                                Pending
+                                            </SelectItem>
+                                        </SelectGroup>
+                                    </SelectContent>
+                                </Select>
+
+                                {companies && (
+                                    <Select
+                                        value={
+                                            filters.company_id
+                                                ? String(filters.company_id)
+                                                : 'all'
+                                        }
+                                        onValueChange={(value) =>
+                                            applyFilters({
+                                                company_id:
+                                                    value === 'all'
+                                                        ? null
+                                                        : Number(value),
+                                            })
+                                        }
+                                    >
+                                        <SelectTrigger className="w-full">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectGroup>
+                                                <SelectItem value="all">
+                                                    All companies
+                                                </SelectItem>
+                                                {companies.map((company) => (
+                                                    <SelectItem
+                                                        key={company.id}
+                                                        value={String(
+                                                            company.id,
+                                                        )}
+                                                    >
+                                                        {company.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectGroup>
+                                        </SelectContent>
+                                    </Select>
+                                )}
+
+                                {salesReps.length > 0 && (
+                                    <Select
+                                        value={
+                                            filters.assigned_to
+                                                ? String(filters.assigned_to)
+                                                : 'all'
+                                        }
+                                        onValueChange={(value) =>
+                                            applyFilters({
+                                                assigned_to:
+                                                    value === 'all'
+                                                        ? null
+                                                        : Number(value),
+                                            })
+                                        }
+                                    >
+                                        <SelectTrigger className="w-full">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectGroup>
+                                                <SelectItem value="all">
+                                                    All reps
+                                                </SelectItem>
+                                                {salesReps.map((rep) => (
+                                                    <SelectItem
+                                                        key={rep.id}
+                                                        value={String(rep.id)}
+                                                    >
+                                                        {rep.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectGroup>
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            </div>
+
+                            <div className="relative w-full">
+                                <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    value={search}
+                                    onChange={(event) => {
+                                        setSearch(event.target.value);
+                                        debouncedSearch(event.target.value);
+                                    }}
+                                    placeholder="Search by ID, name, email, phone…"
+                                    className="pl-8"
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
 
-                <div className="rounded-md border">
+                <div className="rounded-md border p-2">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Name</TableHead>
+                                <TableHead>First Name</TableHead>
+                                <TableHead>Last Name</TableHead>
+                                <TableHead className="hidden lg:table-cell">
+                                    Lead ID
+                                </TableHead>
+                                <TableHead className="hidden lg:table-cell">
+                                    Phone
+                                </TableHead>
                                 {companies && (
                                     <TableHead className="hidden md:table-cell">
                                         Company
@@ -256,18 +403,22 @@ export default function ConversionsIndex() {
                                 <TableHead className="hidden sm:table-cell">
                                     Email
                                 </TableHead>
+                                <TableHead className="hidden lg:table-cell">
+                                    Country
+                                </TableHead>
+                                <TableHead>Sale Status</TableHead>
+                                <TableHead className="hidden lg:table-cell">
+                                    Advertiser
+                                </TableHead>
                                 <TableHead>Released</TableHead>
+                                <TableHead className="hidden lg:table-cell">
+                                    Affiliate
+                                </TableHead>
                                 {salesReps.length > 0 && (
                                     <TableHead className="hidden md:table-cell">
                                         Assigned to
                                     </TableHead>
                                 )}
-                                <TableHead className="hidden lg:table-cell">
-                                    Affiliate
-                                </TableHead>
-                                <TableHead className="hidden lg:table-cell">
-                                    Offer
-                                </TableHead>
                                 <TableHead className="hidden md:table-cell">
                                     Created
                                 </TableHead>
@@ -278,7 +429,11 @@ export default function ConversionsIndex() {
                             {leads.data.length === 0 ? (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={8}
+                                        colSpan={
+                                            (companies ? 1 : 0) +
+                                            (salesReps.length > 0 ? 1 : 0) +
+                                            10
+                                        }
                                         className="py-8 text-center text-sm text-muted-foreground"
                                     >
                                         No FTD leads.
@@ -288,9 +443,18 @@ export default function ConversionsIndex() {
                                 leads.data.map((lead) => (
                                     <TableRow key={lead.id}>
                                         <TableCell className="font-medium">
-                                            {[lead.first_name, lead.last_name]
-                                                .filter(Boolean)
-                                                .join(' ') || '—'}
+                                            {lead.first_name ?? '—'}
+                                        </TableCell>
+                                        <TableCell className="font-medium">
+                                            {lead.last_name ?? '—'}
+                                        </TableCell>
+                                        <TableCell className="hidden lg:table-cell">
+                                            <CopyableLeadId
+                                                externalId={lead.external_id}
+                                            />
+                                        </TableCell>
+                                        <TableCell className="hidden lg:table-cell">
+                                            {lead.mobile ?? '—'}
                                         </TableCell>
                                         {companies && (
                                             <TableCell className="hidden md:table-cell">
@@ -299,6 +463,37 @@ export default function ConversionsIndex() {
                                         )}
                                         <TableCell className="hidden font-semibold sm:table-cell">
                                             {lead.email ?? '—'}
+                                        </TableCell>
+                                        <TableCell className="hidden lg:table-cell">
+                                            {lead.country_code ?? '—'}
+                                        </TableCell>
+                                        <TableCell>
+                                            {lead.sale_status ? (
+                                                <Badge
+                                                    variant="outline"
+                                                    className={statusBadgeClass(
+                                                        lead.sale_status,
+                                                    )}
+                                                >
+                                                    {lead.sale_status}
+                                                </Badge>
+                                            ) : (
+                                                '—'
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="hidden lg:table-cell">
+                                            {lead.advertiser_name ? (
+                                                <Badge
+                                                    variant="outline"
+                                                    className={
+                                                        GREEN_BADGE_CLASS
+                                                    }
+                                                >
+                                                    {lead.advertiser_name}
+                                                </Badge>
+                                            ) : (
+                                                '—'
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             <Badge
@@ -312,17 +507,14 @@ export default function ConversionsIndex() {
                                                     : 'Pending'}
                                             </Badge>
                                         </TableCell>
+                                        <TableCell className="hidden lg:table-cell">
+                                            {lead.affiliate_name ?? '—'}
+                                        </TableCell>
                                         {salesReps.length > 0 && (
                                             <TableCell className="hidden md:table-cell">
                                                 {lead.assignee?.name ?? '—'}
                                             </TableCell>
                                         )}
-                                        <TableCell className="hidden lg:table-cell">
-                                            {lead.affiliate_name ?? '—'}
-                                        </TableCell>
-                                        <TableCell className="hidden lg:table-cell">
-                                            {lead.offer_name ?? '—'}
-                                        </TableCell>
                                         <TableCell className="hidden md:table-cell">
                                             {lead.lead_created_at
                                                 ? new Date(
