@@ -137,9 +137,9 @@ function formatDate(value: string | null | undefined): string {
 // Columns already rendered today stay visible by default; every other
 // column (mostly sourced from `lead.meta`) starts hidden until toggled on.
 const LEAD_COLUMNS: { key: string; label: string }[] = [
+    { key: 'external_id', label: 'Lead ID' },
     { key: 'first_name', label: 'First Name' },
     { key: 'last_name', label: 'Last Name' },
-    { key: 'external_id', label: 'Lead ID' },
     { key: 'mobile', label: 'Phone' },
     { key: 'company', label: 'Company' },
     { key: 'email', label: 'Email' },
@@ -197,9 +197,9 @@ const LEAD_COLUMNS: { key: string; label: string }[] = [
 ];
 
 const DEFAULT_VISIBLE_COLUMN_KEYS = new Set([
+    'external_id',
     'first_name',
     'last_name',
-    'external_id',
     'mobile',
     'company',
     'email',
@@ -221,9 +221,9 @@ const DEFAULT_HIDDEN_COLUMNS = ALL_COLUMN_KEYS.filter(
 // Columns whose responsive visibility class matches an existing column
 // (undefined = always visible, no `hidden ...:table-cell`).
 const COLUMN_RESPONSIVE_CLASS: Record<string, string | undefined> = {
+    external_id: undefined,
     first_name: undefined,
     last_name: undefined,
-    external_id: 'hidden lg:table-cell',
     mobile: 'hidden lg:table-cell',
     company: 'hidden md:table-cell',
     email: 'hidden sm:table-cell',

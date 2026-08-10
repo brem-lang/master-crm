@@ -389,11 +389,9 @@ export default function RejectedLeadsIndex() {
                                         />
                                     </TableHead>
                                 )}
+                                <TableHead>Lead ID</TableHead>
                                 <TableHead>First Name</TableHead>
                                 <TableHead>Last Name</TableHead>
-                                <TableHead className="hidden lg:table-cell">
-                                    Lead ID
-                                </TableHead>
                                 <TableHead className="hidden lg:table-cell">
                                     Phone
                                 </TableHead>
@@ -472,16 +470,16 @@ export default function RejectedLeadsIndex() {
                                                 />
                                             </TableCell>
                                         )}
+                                        <TableCell>
+                                            <CopyableLeadId
+                                                externalId={lead.external_id}
+                                            />
+                                        </TableCell>
                                         <TableCell className="font-medium">
                                             {lead.first_name ?? '—'}
                                         </TableCell>
                                         <TableCell className="font-medium">
                                             {lead.last_name ?? '—'}
-                                        </TableCell>
-                                        <TableCell className="hidden lg:table-cell">
-                                            <CopyableLeadId
-                                                externalId={lead.external_id}
-                                            />
                                         </TableCell>
                                         <TableCell className="hidden lg:table-cell">
                                             {lead.mobile ?? '—'}
