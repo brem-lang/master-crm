@@ -44,9 +44,17 @@ type DirectoryOption = {
     name: string;
 };
 
+type CompanyOption = {
+    id: number;
+    name: string;
+};
+
 type ResendOptions = {
     affiliates: DirectoryOption[];
     advertisers: DirectoryOption[];
+    // Only present (non-null) for users allowed to target a company other
+    // than the lead's own — a parent admin with `view-all-customers`.
+    companies: CompanyOption[] | null;
 };
 
 type ResendResult = {
@@ -67,13 +75,16 @@ export function ResendLeadDialog({
 }) {
     const [options, setOptions] = useState<ResendOptions | null>(null);
     const [loadingOptions, setLoadingOptions] = useState(false);
+    const [companyId, setCompanyId] = useState<number | null>(
+        () => lead?.company_id ?? null,
+    );
     const [affiliateId, setAffiliateId] = useState('');
     const [advertiserId, setAdvertiserId] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] = useState<ResendResult | null>(null);
 
     useEffect(() => {
-        if (!open || !lead) {
+        if (!open || !lead || !companyId) {
             return;
         }
 
@@ -83,9 +94,11 @@ export function ResendLeadDialog({
             setLoadingOptions(true);
 
             try {
-                const response = await fetch(resendOptions(lead.id).url, {
-                    headers: jsonHeaders(),
-                });
+                const response = await fetch(
+                    resendOptions(lead.id, { query: { company_id: companyId } })
+                        .url,
+                    { headers: jsonHeaders() },
+                );
                 const body = (await response.json()) as ResendOptions;
 
                 if (!cancelled) {
@@ -110,12 +123,20 @@ export function ResendLeadDialog({
         };
         // The parent remounts this component (via a `key` on the lead id) every
         // time it opens, so there's no stale state to reset here — only the
-        // fetch itself needs to run per open.
-    }, [open, lead]);
+        // fetch itself needs to run per open, and again whenever the admin
+        // switches the target company.
+    }, [open, lead, companyId]);
 
     if (!lead) {
         return null;
     }
+
+    const switchCompany = (nextCompanyId: number) => {
+        setResult(null);
+        setAffiliateId('');
+        setAdvertiserId('');
+        setCompanyId(nextCompanyId);
+    };
 
     const canSend = !!affiliateId && !!advertiserId && !submitting;
 
@@ -128,6 +149,7 @@ export function ResendLeadDialog({
                 method: 'PATCH',
                 headers: jsonHeaders(),
                 body: JSON.stringify({
+                    company_id: companyId,
                     affiliate_id: affiliateId,
                     advertiser_id: advertiserId,
                 }),
@@ -156,12 +178,41 @@ export function ResendLeadDialog({
                         {[lead.first_name, lead.last_name]
                             .filter(Boolean)
                             .join(' ') || lead.email}{' '}
-                        will be resent to the affiliate and advertiser you choose
-                        below.
+                        will be resent to the company, affiliate, and advertiser
+                        you choose below.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
+                    {options?.companies && (
+                        <div className="grid gap-2">
+                            <Label htmlFor="resend-company">Company</Label>
+                            <Select
+                                value={companyId ? String(companyId) : ''}
+                                onValueChange={(value) =>
+                                    switchCompany(Number(value))
+                                }
+                                disabled={loadingOptions}
+                            >
+                                <SelectTrigger id="resend-company">
+                                    <SelectValue placeholder="Select a company…" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectGroup>
+                                        {options.companies.map((company) => (
+                                            <SelectItem
+                                                key={company.id}
+                                                value={String(company.id)}
+                                            >
+                                                {company.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
                     <div className="grid gap-2">
                         <Label htmlFor="resend-affiliate">Affiliate</Label>
                         <Select

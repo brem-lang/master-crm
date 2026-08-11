@@ -200,54 +200,74 @@ class LeadsController extends Controller
     }
 
     /**
-     * The affiliates/advertisers a "Resend" dialog for this lead may route
-     * to — scoped to the lead's own company and active only, so a resend can
-     * never be pointed at another company's directory entries.
+     * The company/affiliate/advertiser a "Resend" dialog for this lead may
+     * route to. Non-global users are locked to the lead's own company; a
+     * parent admin (`view-all-customers`) may target any active company —
+     * e.g. to route a rejected lead into a different company's advertiser
+     * network — and picks which one via `?company_id=`.
      */
     public function resendOptions(Request $request, Lead $lead): JsonResponse
     {
         $user = $request->user();
 
         $ownsCompany = $user->company_id && $user->company_id === $lead->company_id;
+        $allCompanies = $user->can('view-all-customers');
 
-        abort_unless($user->can('resend-leads') && ($ownsCompany || $user->can('view-all-customers')), 403);
+        abort_unless($user->can('resend-leads') && ($ownsCompany || $allCompanies), 403);
+
+        $companyId = $allCompanies ? ($request->integer('company_id') ?: $lead->company_id) : $lead->company_id;
 
         return response()->json([
-            'affiliates' => Affiliate::where('company_id', $lead->company_id)
+            'affiliates' => Affiliate::where('company_id', $companyId)
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'external_id', 'name']),
-            'advertisers' => Advertiser::where('company_id', $lead->company_id)
+            'advertisers' => Advertiser::where('company_id', $companyId)
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'external_id', 'name']),
+            'companies' => $allCompanies
+                ? Company::where('is_active', true)->orderBy('name')->get(['id', 'name'])
+                : null,
         ]);
     }
 
     /**
      * Re-submits an already-received lead to the child CRM's `send-lead`
-     * endpoint, routed to an admin-chosen affiliate/advertiser. The child API's
-     * own response (success, or a 400/409/422 rejection) is relayed to the
-     * admin as-is — same non-throwing pattern as `sendTestLead()`.
+     * endpoint, routed to an admin-chosen company/affiliate/advertiser. The
+     * child API's own response (success, or a 400/409/422 rejection) is
+     * relayed to the admin as-is — same non-throwing pattern as `sendTestLead()`.
      */
     public function resend(Request $request, Lead $lead, ChildCrmDirectoryClient $client): JsonResponse
     {
         $user = $request->user();
 
         $ownsCompany = $user->company_id && $user->company_id === $lead->company_id;
+        $allCompanies = $user->can('view-all-customers');
 
-        abort_unless($user->can('resend-leads') && ($ownsCompany || $user->can('view-all-customers')), 403);
+        abort_unless($user->can('resend-leads') && ($ownsCompany || $allCompanies), 403);
+
+        $request->validate([
+            'company_id' => ['nullable', 'integer', Rule::exists(Company::class, 'id')->where('is_active', true)],
+        ]);
+
+        // Only a parent admin may redirect a lead to a company other than
+        // its own — everyone else stays locked to the lead's own company,
+        // regardless of what `company_id` they send.
+        $companyId = $allCompanies ? ($request->integer('company_id') ?: $lead->company_id) : $lead->company_id;
+
+        $company = Company::findOrFail($companyId);
 
         $validated = $request->validate([
             'affiliate_id' => [
                 'required',
                 'string',
-                Rule::exists(Affiliate::class, 'external_id')->where('company_id', $lead->company_id)->where('is_active', true),
+                Rule::exists(Affiliate::class, 'external_id')->where('company_id', $companyId)->where('is_active', true),
             ],
             'advertiser_id' => [
                 'required',
                 'string',
-                Rule::exists(Advertiser::class, 'external_id')->where('company_id', $lead->company_id)->where('is_active', true),
+                Rule::exists(Advertiser::class, 'external_id')->where('company_id', $companyId)->where('is_active', true),
             ],
         ]);
 
@@ -271,7 +291,7 @@ class LeadsController extends Controller
             'currency' => $meta['currency'] ?? null,
         ], fn ($value) => $value !== null && $value !== '');
 
-        $result = $client->resendLead($lead->company, $payload);
+        $result = $client->resendLead($company, $payload);
 
         if ($result['status'] >= 200 && $result['status'] < 300) {
             $lead->update([
@@ -282,6 +302,7 @@ class LeadsController extends Controller
                         [
                             'status' => 'resent',
                             'sent_at' => now()->toIso8601String(),
+                            'company_id' => $company->id,
                             'affiliate_id' => $validated['affiliate_id'],
                             'advertiser_id' => $validated['advertiser_id'],
                             'triggered_by' => $user->id,
@@ -292,6 +313,7 @@ class LeadsController extends Controller
             ]);
 
             AuditLog::record('lead.resent', $lead, [
+                'company_id' => $company->id,
                 'affiliate_id' => $validated['affiliate_id'],
                 'advertiser_id' => $validated['advertiser_id'],
             ]);
