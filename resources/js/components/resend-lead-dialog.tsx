@@ -1,6 +1,21 @@
-import { CircleAlert, CircleCheck, Loader2, Send } from 'lucide-react';
+import {
+    Building2,
+    CircleAlert,
+    CircleCheck,
+    Loader2,
+    Mail,
+    Megaphone,
+    Phone,
+    Send,
+    Users,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { resend as resendLead, resendOptions } from '@/actions/App/Http/Controllers/LeadsController';
+import type { ReactNode } from 'react';
+import {
+    resend as resendLead,
+    resendOptions,
+} from '@/actions/App/Http/Controllers/LeadsController';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -64,6 +79,26 @@ type ResendResult = {
     request_id?: string;
 };
 
+function FormSection({
+    icon: Icon,
+    title,
+    children,
+}: {
+    icon: typeof Building2;
+    title: string;
+    children: ReactNode;
+}) {
+    return (
+        <div className="rounded-lg border bg-card/50 p-4">
+            <div className="mb-3 flex items-center gap-2">
+                <Icon className="size-4 text-muted-foreground" />
+                <h4 className="text-sm font-medium">{title}</h4>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">{children}</div>
+        </div>
+    );
+}
+
 export function ResendLeadDialog({
     lead,
     open,
@@ -108,7 +143,8 @@ export function ResendLeadDialog({
                 if (!cancelled) {
                     setResult({
                         success: false,
-                        message: 'Could not load affiliates/advertisers for this company.',
+                        message:
+                            'Could not load affiliates/advertisers for this company.',
                     });
                 }
             } finally {
@@ -138,6 +174,12 @@ export function ResendLeadDialog({
         setCompanyId(nextCompanyId);
     };
 
+    const leadName =
+        [lead.first_name, lead.last_name].filter(Boolean).join(' ') ||
+        'This lead';
+    const selectedCompanyName =
+        options?.companies?.find((company) => company.id === companyId)?.name ??
+        lead.company?.name;
     const canSend = !!affiliateId && !!advertiserId && !submitting;
 
     const submit = async () => {
@@ -168,25 +210,51 @@ export function ResendLeadDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Send className="size-4 text-muted-foreground" />
                         Resend lead
                     </DialogTitle>
                     <DialogDescription>
-                        {[lead.first_name, lead.last_name]
-                            .filter(Boolean)
-                            .join(' ') || lead.email}{' '}
-                        will be resent to the company, affiliate, and advertiser
-                        you choose below.
+                        Route {leadName} to a company, affiliate, and advertiser
+                        of your choice.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
+                    <div className="rounded-lg border bg-muted/30 p-4">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="font-medium">{leadName}</p>
+                            {selectedCompanyName && (
+                                <Badge variant="outline">
+                                    {selectedCompanyName}
+                                </Badge>
+                            )}
+                        </div>
+                        <div className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
+                            {lead.email && (
+                                <span className="flex items-center gap-1.5">
+                                    <Mail className="size-3.5 shrink-0" />
+                                    {lead.email}
+                                </span>
+                            )}
+                            {lead.mobile && (
+                                <span className="flex items-center gap-1.5">
+                                    <Phone className="size-3.5 shrink-0" />
+                                    {lead.mobile}
+                                    {lead.country_code &&
+                                        ` (${lead.country_code})`}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
                     {options?.companies && (
-                        <div className="grid gap-2">
-                            <Label htmlFor="resend-company">Company</Label>
+                        <FormSection
+                            icon={Building2}
+                            title="Destination company"
+                        >
                             <Select
                                 value={companyId ? String(companyId) : ''}
                                 onValueChange={(value) =>
@@ -194,7 +262,10 @@ export function ResendLeadDialog({
                                 }
                                 disabled={loadingOptions}
                             >
-                                <SelectTrigger id="resend-company">
+                                <SelectTrigger
+                                    id="resend-company"
+                                    className="sm:col-span-2"
+                                >
                                     <SelectValue placeholder="Select a company…" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -210,80 +281,108 @@ export function ResendLeadDialog({
                                     </SelectGroup>
                                 </SelectContent>
                             </Select>
-                        </div>
+                        </FormSection>
                     )}
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="resend-affiliate">Affiliate</Label>
-                        <Select
-                            value={affiliateId}
-                            onValueChange={(value) => {
-                                setResult(null);
-                                setAffiliateId(value);
-                            }}
-                            disabled={loadingOptions || !options?.affiliates.length}
-                        >
-                            <SelectTrigger id="resend-affiliate">
-                                <SelectValue
-                                    placeholder={
-                                        loadingOptions
-                                            ? 'Loading…'
-                                            : options?.affiliates.length
-                                              ? 'Select an affiliate…'
-                                              : 'No active affiliates for this company'
-                                    }
-                                />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    {options?.affiliates.map((affiliate) => (
-                                        <SelectItem
-                                            key={affiliate.id}
-                                            value={affiliate.external_id}
-                                        >
-                                            {affiliate.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <FormSection icon={Send} title="Routing">
+                        <div className="grid gap-2">
+                            <Label
+                                htmlFor="resend-affiliate"
+                                className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                            >
+                                <Users className="size-3.5" />
+                                Affiliate
+                            </Label>
+                            <Select
+                                value={affiliateId}
+                                onValueChange={(value) => {
+                                    setResult(null);
+                                    setAffiliateId(value);
+                                }}
+                                disabled={
+                                    loadingOptions ||
+                                    !options?.affiliates.length
+                                }
+                            >
+                                <SelectTrigger id="resend-affiliate">
+                                    <SelectValue
+                                        placeholder={
+                                            loadingOptions
+                                                ? 'Loading…'
+                                                : options?.affiliates.length
+                                                  ? 'Select an affiliate…'
+                                                  : 'No active affiliates for this company'
+                                        }
+                                    />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectGroup>
+                                        {options?.affiliates.map(
+                                            (affiliate) => (
+                                                <SelectItem
+                                                    key={affiliate.id}
+                                                    value={
+                                                        affiliate.external_id
+                                                    }
+                                                >
+                                                    {affiliate.name}
+                                                </SelectItem>
+                                            ),
+                                        )}
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="resend-advertiser">Advertiser</Label>
-                        <Select
-                            value={advertiserId}
-                            onValueChange={(value) => {
-                                setResult(null);
-                                setAdvertiserId(value);
-                            }}
-                            disabled={loadingOptions || !options?.advertisers.length}
-                        >
-                            <SelectTrigger id="resend-advertiser">
-                                <SelectValue
-                                    placeholder={
-                                        loadingOptions
-                                            ? 'Loading…'
-                                            : options?.advertisers.length
-                                              ? 'Select an advertiser…'
-                                              : 'No active advertisers for this company'
-                                    }
-                                />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    {options?.advertisers.map((advertiser) => (
-                                        <SelectItem
-                                            key={advertiser.id}
-                                            value={advertiser.external_id}
-                                        >
-                                            {advertiser.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    </div>
+                        <div className="grid gap-2">
+                            <Label
+                                htmlFor="resend-advertiser"
+                                className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                            >
+                                <Megaphone className="size-3.5" />
+                                Advertiser
+                            </Label>
+                            <Select
+                                value={advertiserId}
+                                onValueChange={(value) => {
+                                    setResult(null);
+                                    setAdvertiserId(value);
+                                }}
+                                disabled={
+                                    loadingOptions ||
+                                    !options?.advertisers.length
+                                }
+                            >
+                                <SelectTrigger id="resend-advertiser">
+                                    <SelectValue
+                                        placeholder={
+                                            loadingOptions
+                                                ? 'Loading…'
+                                                : options?.advertisers.length
+                                                  ? 'Select an advertiser…'
+                                                  : 'No active advertisers for this company'
+                                        }
+                                    />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectGroup>
+                                        {options?.advertisers.map(
+                                            (advertiser) => (
+                                                <SelectItem
+                                                    key={advertiser.id}
+                                                    value={
+                                                        advertiser.external_id
+                                                    }
+                                                >
+                                                    {advertiser.name}
+                                                </SelectItem>
+                                            ),
+                                        )}
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </FormSection>
 
                     {result && (
                         <div
@@ -309,7 +408,10 @@ export function ResendLeadDialog({
                 </div>
 
                 <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>
+                    <Button
+                        variant="outline"
+                        onClick={() => onOpenChange(false)}
+                    >
                         Close
                     </Button>
                     <Button disabled={!canSend} onClick={submit}>
