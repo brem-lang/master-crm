@@ -271,32 +271,14 @@ class LeadsController extends Controller
             ],
         ]);
 
-        $meta = $lead->meta ?? [];
-
-        $payload = array_filter([
-            'affiliate_id' => $validated['affiliate_id'],
-            'advertiser_id' => $validated['advertiser_id'],
-            'firstname' => $lead->first_name,
-            'lastname' => $lead->last_name,
-            'email' => $lead->email,
-            'mobile' => $lead->mobile,
-            'country_code' => $lead->country_code,
-            'ip_address' => $lead->ip_address,
-            'offer_name' => $lead->offer_name,
-            'custom1' => $meta['custom1'] ?? null,
-            'custom2' => $meta['custom2'] ?? null,
-            'custom3' => $meta['custom3'] ?? null,
-            'aff_sub' => $meta['aff_sub'] ?? null,
-            'locale' => $meta['locale'] ?? null,
-            'currency' => $meta['currency'] ?? null,
-        ], fn ($value) => $value !== null && $value !== '');
+        $payload = $this->buildResendPayload($lead, $validated['affiliate_id'], $validated['advertiser_id']);
 
         $result = $client->resendLead($company, $payload);
 
         if ($result['status'] >= 200 && $result['status'] < 300) {
             $lead->update([
                 'meta' => [
-                    ...$meta,
+                    ...$lead->meta ?? [],
                     'lead_distributions' => [
                         ...$lead->distributions(),
                         [
@@ -320,6 +302,38 @@ class LeadsController extends Controller
         }
 
         return response()->json($result['body'], $result['status']);
+    }
+
+    /**
+     * The fields the child CRM's `send-lead` function accepts, sourced from
+     * this lead's own stored data — the required contact fields live as
+     * first-class Lead columns, the rest were preserved verbatim in `meta`
+     * when the lead was originally synced in (see `CompanyLeadsSyncer`).
+     *
+     * @return array<string, mixed>
+     */
+    private function buildResendPayload(Lead $lead, string $affiliateId, string $advertiserId): array
+    {
+        $meta = $lead->meta ?? [];
+
+        return array_filter([
+            'affiliate_id' => $affiliateId,
+            'advertiser_id' => $advertiserId,
+            'firstname' => $lead->first_name,
+            'lastname' => $lead->last_name,
+            'email' => $lead->email,
+            'mobile' => $lead->mobile,
+            'country_code' => $lead->country_code,
+            'ip_address' => $lead->ip_address,
+            'offer_name' => $lead->offer_name,
+            'comment' => $meta['comment'] ?? null,
+            'custom1' => $meta['custom1'] ?? null,
+            'custom2' => $meta['custom2'] ?? null,
+            'custom3' => $meta['custom3'] ?? null,
+            'aff_sub' => $meta['aff_sub'] ?? null,
+            'locale' => $meta['locale'] ?? null,
+            'currency' => $meta['currency'] ?? null,
+        ], fn ($value) => $value !== null && $value !== '');
     }
 
     public function assign(Request $request, Lead $lead): RedirectResponse
