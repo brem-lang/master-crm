@@ -6,8 +6,8 @@ import { BulkDeleteBar } from '@/components/bulk-delete-bar';
 import { DataPagination } from '@/components/data-pagination';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import Heading from '@/components/heading';
-import { LeadDetailsDialog } from '@/components/lead-details-dialog';
 import { RefreshButton } from '@/components/refresh-button';
+import { RejectionDetailsDialog } from '@/components/rejection-details-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -654,7 +654,7 @@ export default function RejectedLeadsIndex() {
 
                 <DataPagination paginator={leads} filters={filters} />
 
-                <LeadDetailsDialog
+                <RejectionDetailsDialog
                     lead={viewingLead ?? viewLead}
                     open={!!viewingLead || !!viewLead}
                     onOpenChange={(open) => {

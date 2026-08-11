@@ -288,6 +288,8 @@ class LeadsController extends Controller
                             'affiliate_id' => $validated['affiliate_id'],
                             'advertiser_id' => $validated['advertiser_id'],
                             'triggered_by' => $user->id,
+                            'request_payload' => $payload,
+                            'request_url' => $company->send_lead_url,
                             'response' => $result['body'],
                         ],
                     ],

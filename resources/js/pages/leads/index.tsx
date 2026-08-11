@@ -17,8 +17,8 @@ import { BulkDeleteBar } from '@/components/bulk-delete-bar';
 import { DataPagination } from '@/components/data-pagination';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import Heading from '@/components/heading';
-import { LeadDetailsDialog } from '@/components/lead-details-dialog';
 import { RefreshButton } from '@/components/refresh-button';
+import { RequestDetailsDialog } from '@/components/request-details-dialog';
 import { ResendLeadDialog } from '@/components/resend-lead-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -806,9 +806,7 @@ export default function LeadsIndex() {
                                 {visibleColumns.map((column) => (
                                     <TableHead
                                         key={column.key}
-                                        className={columnClassName(
-                                            column.key,
-                                        )}
+                                        className={columnClassName(column.key)}
                                     >
                                         {column.label}
                                     </TableHead>
@@ -961,7 +959,7 @@ export default function LeadsIndex() {
 
                 <DataPagination paginator={leads} filters={filters} />
 
-                <LeadDetailsDialog
+                <RequestDetailsDialog
                     lead={viewingLead ?? viewLead}
                     open={!!viewingLead || !!viewLead}
                     onOpenChange={(open) => {
