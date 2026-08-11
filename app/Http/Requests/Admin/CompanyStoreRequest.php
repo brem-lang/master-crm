@@ -30,6 +30,7 @@ class CompanyStoreRequest extends FormRequest
             'advertiser_count_api_url' => ['nullable', 'string', 'max:255', 'url'],
             'send_test_lead_url' => ['nullable', 'string', 'max:255', 'url'],
             'release_ftd_url' => ['nullable', 'string', 'max:255', 'url'],
+            'send_lead_url' => ['nullable', 'string', 'max:255', 'url'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

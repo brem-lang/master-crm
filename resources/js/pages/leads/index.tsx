@@ -7,6 +7,7 @@ import {
     Eye,
     MoreHorizontal,
     Search,
+    Send,
     Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -18,6 +19,7 @@ import { DateRangeFilter } from '@/components/date-range-filter';
 import Heading from '@/components/heading';
 import { LeadDetailsDialog } from '@/components/lead-details-dialog';
 import { RefreshButton } from '@/components/refresh-button';
+import { ResendLeadDialog } from '@/components/resend-lead-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -290,11 +292,13 @@ export default function LeadsIndex() {
     } = usePage<PageProps>().props;
     const [search, setSearch] = useState(filters.search);
     const [viewingLead, setViewingLead] = useState<Lead | null>(null);
+    const [resendingLead, setResendingLead] = useState<Lead | null>(null);
     const [hidden, setHidden] = useState(
         hiddenColumns ?? DEFAULT_HIDDEN_COLUMNS,
     );
     const canAssignLeads = auth.permissions?.includes('assign-leads');
     const canDeleteLeads = auth.permissions?.includes('delete-leads');
+    const canResendLeads = auth.permissions?.includes('resend-leads');
     const selection = useRowSelection(leads.data, leads.current_page);
 
     const visibleColumnKeys = ALL_COLUMN_KEYS.filter(
@@ -870,6 +874,19 @@ export default function LeadsIndex() {
                                                     View
                                                 </DropdownMenuItem>
 
+                                                {canResendLeads && (
+                                                    <DropdownMenuItem
+                                                        onSelect={() =>
+                                                            setResendingLead(
+                                                                lead,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Send />
+                                                        Resend
+                                                    </DropdownMenuItem>
+                                                )}
+
                                                 {canDeleteLeads && (
                                                     <Dialog>
                                                         <DialogTrigger asChild>
@@ -956,6 +973,13 @@ export default function LeadsIndex() {
                             }
                         }
                     }}
+                />
+
+                <ResendLeadDialog
+                    key={resendingLead?.id ?? 'none'}
+                    lead={resendingLead}
+                    open={!!resendingLead}
+                    onOpenChange={(open) => !open && setResendingLead(null)}
                 />
             </div>
         </>

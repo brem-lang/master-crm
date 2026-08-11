@@ -4,16 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Exports\LeadsExport;
 use App\Http\Controllers\Concerns\ResolvesDateRange;
+use App\Models\Advertiser;
+use App\Models\Affiliate;
 use App\Models\AuditLog;
 use App\Models\Company;
 use App\Models\Lead;
 use App\Models\LeadColumnPreference;
 use App\Models\User;
 use App\Services\ChildCrmDirectoryClient;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -194,6 +197,107 @@ class LeadsController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('FTD marked as released.')]);
 
         return back();
+    }
+
+    /**
+     * The affiliates/advertisers a "Resend" dialog for this lead may route
+     * to — scoped to the lead's own company and active only, so a resend can
+     * never be pointed at another company's directory entries.
+     */
+    public function resendOptions(Request $request, Lead $lead): JsonResponse
+    {
+        $user = $request->user();
+
+        $ownsCompany = $user->company_id && $user->company_id === $lead->company_id;
+
+        abort_unless($user->can('resend-leads') && ($ownsCompany || $user->can('view-all-customers')), 403);
+
+        return response()->json([
+            'affiliates' => Affiliate::where('company_id', $lead->company_id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'external_id', 'name']),
+            'advertisers' => Advertiser::where('company_id', $lead->company_id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'external_id', 'name']),
+        ]);
+    }
+
+    /**
+     * Re-submits an already-received lead to the child CRM's `send-lead`
+     * endpoint, routed to an admin-chosen affiliate/advertiser. The child API's
+     * own response (success, or a 400/409/422 rejection) is relayed to the
+     * admin as-is — same non-throwing pattern as `sendTestLead()`.
+     */
+    public function resend(Request $request, Lead $lead, ChildCrmDirectoryClient $client): JsonResponse
+    {
+        $user = $request->user();
+
+        $ownsCompany = $user->company_id && $user->company_id === $lead->company_id;
+
+        abort_unless($user->can('resend-leads') && ($ownsCompany || $user->can('view-all-customers')), 403);
+
+        $validated = $request->validate([
+            'affiliate_id' => [
+                'required',
+                'string',
+                Rule::exists(Affiliate::class, 'external_id')->where('company_id', $lead->company_id)->where('is_active', true),
+            ],
+            'advertiser_id' => [
+                'required',
+                'string',
+                Rule::exists(Advertiser::class, 'external_id')->where('company_id', $lead->company_id)->where('is_active', true),
+            ],
+        ]);
+
+        $meta = $lead->meta ?? [];
+
+        $payload = array_filter([
+            'affiliate_id' => $validated['affiliate_id'],
+            'advertiser_id' => $validated['advertiser_id'],
+            'firstname' => $lead->first_name,
+            'lastname' => $lead->last_name,
+            'email' => $lead->email,
+            'mobile' => $lead->mobile,
+            'country_code' => $lead->country_code,
+            'ip_address' => $lead->ip_address,
+            'offer_name' => $lead->offer_name,
+            'custom1' => $meta['custom1'] ?? null,
+            'custom2' => $meta['custom2'] ?? null,
+            'custom3' => $meta['custom3'] ?? null,
+            'aff_sub' => $meta['aff_sub'] ?? null,
+            'locale' => $meta['locale'] ?? null,
+            'currency' => $meta['currency'] ?? null,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $result = $client->resendLead($lead->company, $payload);
+
+        if ($result['status'] >= 200 && $result['status'] < 300) {
+            $lead->update([
+                'meta' => [
+                    ...$meta,
+                    'lead_distributions' => [
+                        ...$lead->distributions(),
+                        [
+                            'status' => 'resent',
+                            'sent_at' => now()->toIso8601String(),
+                            'affiliate_id' => $validated['affiliate_id'],
+                            'advertiser_id' => $validated['advertiser_id'],
+                            'triggered_by' => $user->id,
+                            'response' => $result['body'],
+                        ],
+                    ],
+                ],
+            ]);
+
+            AuditLog::record('lead.resent', $lead, [
+                'affiliate_id' => $validated['affiliate_id'],
+                'advertiser_id' => $validated['advertiser_id'],
+            ]);
+        }
+
+        return response()->json($result['body'], $result['status']);
     }
 
     public function assign(Request $request, Lead $lead): RedirectResponse

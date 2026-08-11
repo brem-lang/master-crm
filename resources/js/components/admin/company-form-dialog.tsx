@@ -162,6 +162,22 @@ export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
                             </div>
 
                             <div className="grid gap-2">
+                                <Label htmlFor="send_lead_url">
+                                    Send Lead API URL
+                                </Label>
+                                <Input
+                                    id="send_lead_url"
+                                    name="send_lead_url"
+                                    type="url"
+                                    defaultValue={
+                                        company?.send_lead_url ?? ''
+                                    }
+                                    placeholder="https://{project}.supabase.co/functions/v1/send-lead"
+                                />
+                                <InputError message={errors.send_lead_url} />
+                            </div>
+
+                            <div className="grid gap-2">
                                 <Label htmlFor="api_key">API Key</Label>
                                 <Input
                                     id="api_key"

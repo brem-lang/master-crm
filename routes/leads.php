@@ -11,6 +11,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/leads/conversions', [LeadsController::class, 'conversions'])->name('leads.conversions');
     Route::patch('/leads/{lead}/assign', [LeadsController::class, 'assign'])->name('leads.assign');
     Route::patch('/leads/{lead}/release-ftd', [LeadsController::class, 'releaseFtd'])->name('leads.release-ftd');
+    Route::get('/leads/{lead}/resend-options', [LeadsController::class, 'resendOptions'])->name('leads.resend-options');
+    Route::patch('/leads/{lead}/resend', [LeadsController::class, 'resend'])->name('leads.resend');
     Route::patch('/leads/bulk-assign', [LeadsController::class, 'bulkAssign'])->name('leads.bulk-assign');
     Route::patch('/leads/column-preferences', [LeadsController::class, 'updateColumnPreferences'])->name('leads.column-preferences.update');
     Route::delete('/leads/bulk-destroy', [LeadsController::class, 'bulkDestroy'])->name('leads.bulk-destroy');

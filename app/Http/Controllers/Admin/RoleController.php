@@ -32,6 +32,7 @@ class RoleController extends Controller
         'assign-leads' => 'Assign leads to sales reps.',
         'send-test-leads' => 'Send test leads to advertisers.',
         'release-ftd' => 'Release first-time-deposit leads.',
+        'resend-leads' => 'Resend leads to a chosen affiliate and advertiser.',
         'delete-leads' => 'Permanently delete leads.',
         'delete-affiliates' => 'Permanently delete affiliates.',
         'delete-advertisers' => 'Permanently delete advertisers.',

@@ -122,6 +122,42 @@ class ChildCrmDirectoryClient
     }
 
     /**
+     * (Re)submits a lead to one of the company's advertisers via a chosen
+     * affiliate. Same non-throwing shape as `sendTestLead()`/`releaseFtd()` —
+     * the child API's own message (e.g. a 409 duplicate-email/IP rejection)
+     * is what the admin needs to see, not a generic failure.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function resendLead(Company $company, array $payload): array
+    {
+        if (blank($company->send_lead_url)) {
+            return [
+                'status' => 422,
+                'body' => ['success' => false, 'message' => "No send-lead API URL is configured for {$company->name}."],
+            ];
+        }
+
+        try {
+            $response = $this->postJson($company, $company->send_lead_url, $payload);
+        } catch (ChildCrmSyncException $e) {
+            return ['status' => 502, 'body' => ['success' => false, 'message' => $e->getMessage()]];
+        }
+
+        $body = $response->json();
+
+        if (! is_array($body)) {
+            return [
+                'status' => 502,
+                'body' => ['success' => false, 'message' => "{$company->name}'s API returned an unreadable response."],
+            ];
+        }
+
+        return ['status' => $response->status(), 'body' => $body];
+    }
+
+    /**
      * @throws ChildCrmSyncException
      */
     private function fetchCount(Company $company, ?string $url, string $missingUrlMessage, string $countKey): int
