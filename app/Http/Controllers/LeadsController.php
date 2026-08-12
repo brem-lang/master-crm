@@ -72,24 +72,43 @@ class LeadsController extends Controller
             ? User::where('company_id', $companyId)->where('is_active', true)->role('sales-rep')->orderBy('name')->get(['id', 'name', 'company_id'])
             : ($allCompanies ? User::whereNotNull('company_id')->where('is_active', true)->role('sales-rep')->orderBy('name')->get(['id', 'name', 'company_id']) : []);
 
-        $metrics['hiddenColumns'] = LeadColumnPreference::where('user_id', $user->id)->value('hidden_columns');
+        $columnPreference = LeadColumnPreference::where('user_id', $user->id)
+            ->first(['hidden_columns', 'column_order']);
+        $metrics['hiddenColumns'] = $columnPreference?->hidden_columns;
+        $metrics['columnOrder'] = $columnPreference?->column_order;
 
         return Inertia::render('leads/index', $metrics);
     }
 
     /**
-     * Persist the requesting user's hidden-column set for the leads table.
+     * Persist the requesting user's hidden-column set and column order for
+     * the leads table.
      */
     public function updateColumnPreferences(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'hidden_columns' => ['present', 'array'],
             'hidden_columns.*' => ['string', Rule::in(self::HIDDEN_COLUMN_KEYS)],
+            'column_order' => ['sometimes', 'array'],
+            'column_order.*' => ['string', Rule::in(self::HIDDEN_COLUMN_KEYS)],
         ]);
+
+        $attributes = ['hidden_columns' => $validated['hidden_columns']];
+
+        // Only touch column_order when the client actually sent one, so a
+        // visibility-only toggle never wipes out a previously saved order.
+        // Duplicates/unknown keys are dropped defensively rather than
+        // rejecting the request outright — a stale client payload should
+        // never be able to lock a user out of saving their preferences.
+        if (isset($validated['column_order'])) {
+            $attributes['column_order'] = array_values(
+                array_intersect(array_unique($validated['column_order']), self::HIDDEN_COLUMN_KEYS),
+            );
+        }
 
         LeadColumnPreference::updateOrCreate(
             ['user_id' => $request->user()->id],
-            ['hidden_columns' => $validated['hidden_columns']],
+            $attributes,
         );
 
         return back();

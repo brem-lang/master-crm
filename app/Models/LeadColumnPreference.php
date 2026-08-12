@@ -10,8 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $id
  * @property int $user_id
  * @property list<string> $hidden_columns
+ * @property list<string>|null $column_order
  */
-#[Fillable(['user_id', 'hidden_columns'])]
+#[Fillable(['user_id', 'hidden_columns', 'column_order'])]
 class LeadColumnPreference extends Model
 {
     /**
@@ -29,6 +30,7 @@ class LeadColumnPreference extends Model
     {
         return [
             'hidden_columns' => 'array',
+            'column_order' => 'array',
         ];
     }
 }

@@ -1,7 +1,6 @@
 import { Form, Head, router, usePage } from '@inertiajs/react';
 import {
     Check,
-    Columns3,
     Copy,
     Download,
     Eye,
@@ -14,6 +13,7 @@ import { useState } from 'react';
 import LeadsController from '@/actions/App/Http/Controllers/LeadsController';
 import { BulkAssignBar } from '@/components/bulk-assign-bar';
 import { BulkDeleteBar } from '@/components/bulk-delete-bar';
+import { ColumnsMenu } from '@/components/columns-menu';
 import { DataPagination } from '@/components/data-pagination';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import Heading from '@/components/heading';
@@ -220,6 +220,19 @@ const DEFAULT_HIDDEN_COLUMNS = ALL_COLUMN_KEYS.filter(
     (key) => !DEFAULT_VISIBLE_COLUMN_KEYS.has(key),
 );
 
+/**
+ * Resolve the saved column order against the current set of columns:
+ * drop stale/unknown keys, then append any column the user has never
+ * ordered (e.g. one added after they last saved) at the end.
+ */
+function sanitizeColumnOrder(savedOrder: string[] | null): string[] {
+    const known =
+        savedOrder?.filter((key) => ALL_COLUMN_KEYS.includes(key)) ?? [];
+    const missing = ALL_COLUMN_KEYS.filter((key) => !known.includes(key));
+
+    return [...known, ...missing];
+}
+
 // Columns whose responsive visibility class matches an existing column
 // (undefined = always visible, no `hidden ...:table-cell`).
 const COLUMN_RESPONSIVE_CLASS: Record<string, string | undefined> = {
@@ -258,6 +271,7 @@ type PageProps = {
     salesReps: Pick<User, 'id' | 'name' | 'company_id'>[];
     viewLead: Lead | null;
     hiddenColumns: string[] | null;
+    columnOrder: string[] | null;
     filterOptions: {
         countries: string[];
         affiliates: string[];
@@ -287,6 +301,7 @@ export default function LeadsIndex() {
         salesReps,
         viewLead,
         hiddenColumns,
+        columnOrder,
         filterOptions,
         filters,
     } = usePage<PageProps>().props;
@@ -296,33 +311,38 @@ export default function LeadsIndex() {
     const [hidden, setHidden] = useState(
         hiddenColumns ?? DEFAULT_HIDDEN_COLUMNS,
     );
+    const [order, setOrder] = useState(sanitizeColumnOrder(columnOrder));
     const canAssignLeads = auth.permissions?.includes('assign-leads');
     const canDeleteLeads = auth.permissions?.includes('delete-leads');
     const canResendLeads = auth.permissions?.includes('resend-leads');
     const selection = useRowSelection(leads.data, leads.current_page);
 
-    const visibleColumnKeys = ALL_COLUMN_KEYS.filter(
-        (key) => !hidden.includes(key),
+    const columnsByKey = new Map(
+        LEAD_COLUMNS.map((column) => [column.key, column]),
     );
 
-    const toggleColumns = (nextVisible: string[]) => {
-        const nextHidden = ALL_COLUMN_KEYS.filter(
-            (key) => !nextVisible.includes(key),
-        );
+    const updateColumnPreferences = (
+        nextOrder: string[],
+        nextHidden: string[],
+    ) => {
+        setOrder(nextOrder);
         setHidden(nextHidden);
         router.patch(
             LeadsController.updateColumnPreferences().url,
-            { hidden_columns: nextHidden },
+            { hidden_columns: nextHidden, column_order: nextOrder },
             { preserveState: true, preserveScroll: true, only: [] },
         );
     };
 
-    const visibleColumns = LEAD_COLUMNS.filter(
-        (column) =>
-            !hidden.includes(column.key) &&
-            (column.key !== 'company' || !!companies) &&
-            (column.key !== 'assigned_to' || salesReps.length > 0),
-    );
+    const visibleColumns = order
+        .map((key) => columnsByKey.get(key))
+        .filter(
+            (column): column is (typeof LEAD_COLUMNS)[number] =>
+                column !== undefined &&
+                !hidden.includes(column.key) &&
+                (column.key !== 'company' || !!companies) &&
+                (column.key !== 'assigned_to' || salesReps.length > 0),
+        );
 
     const renderLeadCell = (key: string, lead: Lead) => {
         switch (key) {
@@ -715,15 +735,11 @@ export default function LeadsIndex() {
                                     </Select>
                                 )}
 
-                                <MultiSelect
-                                    placeholder="Columns"
-                                    selected={visibleColumnKeys}
-                                    onChange={toggleColumns}
-                                    options={LEAD_COLUMNS.map((c) => ({
-                                        value: c.key,
-                                        label: c.label,
-                                    }))}
-                                    icon={<Columns3 className="size-4" />}
+                                <ColumnsMenu
+                                    columns={LEAD_COLUMNS}
+                                    order={order}
+                                    hidden={hidden}
+                                    onChange={updateColumnPreferences}
                                 />
                             </div>
 
