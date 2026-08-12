@@ -184,6 +184,10 @@ class CompanyController extends Controller
             $this->recordJobRun($company, $directorySyncer->syncAdvertisers($company), 'manual');
         }
 
+        if (filled($company->distribution_rules_url)) {
+            $this->recordJobRun($company, $directorySyncer->syncDistributionRules($company), 'manual');
+        }
+
         Inertia::flash('toast', [
             'type' => $result['success'] ? 'success' : 'error',
             'message' => $result['message'],

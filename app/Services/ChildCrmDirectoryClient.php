@@ -31,6 +31,16 @@ class ChildCrmDirectoryClient
     }
 
     /**
+     * @return array{success: bool, total?: int, all_rules_count?: int, page: int, pages: int, next_cursor?: ?string, next_since?: ?string, data: list<array<string, mixed>>}
+     *
+     * @throws ChildCrmSyncException
+     */
+    public function fetchDistributionRulesPage(Company $company, int $page, int $limit = 100, ?string $since = null): array
+    {
+        return $this->fetchPage($company, $company->distribution_rules_url, 'No distribution-rules API URL is configured', $page, $limit, $since);
+    }
+
+    /**
      * Fetch the authoritative affiliate count from the company's dedicated,
      * lightweight count endpoint — mirrors `ChildCrmLeadsClient::fetchLeadCount()`.
      *

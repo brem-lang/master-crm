@@ -27,6 +27,7 @@ use Illuminate\Support\Str;
  * @property string|null $release_ftd_url
  * @property string|null $send_lead_url
  * @property string|null $update_affiliate_status_url
+ * @property string|null $distribution_rules_url
  * @property bool $is_active
  * @property Carbon|null $last_synced_at
  * @property Carbon|null $last_synced_since
@@ -37,6 +38,9 @@ use Illuminate\Support\Str;
  * @property Carbon|null $advertisers_last_synced_at
  * @property Carbon|null $advertisers_last_synced_since
  * @property string|null $advertisers_last_synced_cursor
+ * @property Carbon|null $distribution_rules_last_synced_at
+ * @property Carbon|null $distribution_rules_last_synced_since
+ * @property string|null $distribution_rules_last_synced_cursor
  * @property array<string, mixed>|null $db_connection
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -44,10 +48,11 @@ use Illuminate\Support\Str;
 #[Fillable([
     'name', 'slug', 'website', 'api_url', 'api_key', 'leads_count_url', 'affiliates_url', 'advertisers_url',
     'affiliate_count_api_url', 'advertiser_count_api_url', 'send_test_lead_url', 'release_ftd_url', 'send_lead_url',
-    'update_affiliate_status_url',
+    'update_affiliate_status_url', 'distribution_rules_url',
     'is_active', 'last_synced_at', 'last_synced_since', 'last_synced_cursor',
     'affiliates_last_synced_at', 'affiliates_last_synced_since', 'affiliates_last_synced_cursor',
     'advertisers_last_synced_at', 'advertisers_last_synced_since', 'advertisers_last_synced_cursor',
+    'distribution_rules_last_synced_at', 'distribution_rules_last_synced_since', 'distribution_rules_last_synced_cursor',
 ])]
 #[Hidden(['api_key'])]
 class Company extends Model
@@ -88,6 +93,14 @@ class Company extends Model
     }
 
     /**
+     * @return HasMany<DistributionRule, $this>
+     */
+    public function distributionRules(): HasMany
+    {
+        return $this->hasMany(DistributionRule::class);
+    }
+
+    /**
      * Derive a unique slug from a company name, appending -2, -3, ... on collision.
      */
     public static function generateUniqueSlug(string $name): string
@@ -119,6 +132,8 @@ class Company extends Model
             'affiliates_last_synced_since' => 'datetime',
             'advertisers_last_synced_at' => 'datetime',
             'advertisers_last_synced_since' => 'datetime',
+            'distribution_rules_last_synced_at' => 'datetime',
+            'distribution_rules_last_synced_since' => 'datetime',
         ];
     }
 }

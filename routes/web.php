@@ -24,4 +24,5 @@ require __DIR__.'/company-audit-log.php';
 require __DIR__.'/my-leads.php';
 require __DIR__.'/affiliates.php';
 require __DIR__.'/advertisers.php';
+require __DIR__.'/distribution-rules.php';
 require __DIR__.'/logs.php';

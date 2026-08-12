@@ -72,6 +72,10 @@ class PullCompanyLeadsJob implements ShouldBeUnique, ShouldQueue
             $this->recordJobRun($directorySyncer->syncAdvertisers($this->company));
         }
 
+        if (filled($this->company->distribution_rules_url)) {
+            $this->recordJobRun($directorySyncer->syncDistributionRules($this->company));
+        }
+
         if (! $result['success']) {
             // CompanyLeadsSyncer never throws — it always returns a result array so the
             // synchronous "Pull data" button gets an immediate friendly message instead

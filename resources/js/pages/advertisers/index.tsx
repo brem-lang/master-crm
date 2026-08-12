@@ -797,9 +797,8 @@ export default function AdvertisersIndex() {
     const { auth, stats, advertisers, companies, filters } =
         usePage<PageProps>().props;
     const canSendTestLeads = auth.permissions?.includes('send-test-leads');
-    const canDeleteAdvertisers = auth.permissions?.includes(
-        'delete-advertisers',
-    );
+    const canDeleteAdvertisers =
+        auth.permissions?.includes('delete-advertisers');
     const [search, setSearch] = useState(filters.search);
     const [viewingAdvertiser, setViewingAdvertiser] =
         useState<Advertiser | null>(null);
@@ -834,6 +833,7 @@ export default function AdvertisersIndex() {
             <div className="space-y-6 p-4">
                 <div className="flex items-center justify-between">
                     <Heading
+                        className="mb-0"
                         title="Advertisers"
                         description="Advertisers synced from your company's CRM"
                     />
@@ -982,9 +982,7 @@ export default function AdvertisersIndex() {
                             {advertisers.data.length === 0 ? (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={
-                                            canDeleteAdvertisers ? 7 : 6
-                                        }
+                                        colSpan={canDeleteAdvertisers ? 7 : 6}
                                         className="py-8 text-center text-sm text-muted-foreground"
                                     >
                                         No advertisers synced yet.

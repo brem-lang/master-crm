@@ -43,6 +43,7 @@ class CompanyUpdateRequest extends FormRequest
             'release_ftd_url' => ['nullable', 'string', 'max:255', 'url'],
             'send_lead_url' => ['nullable', 'string', 'max:255', 'url'],
             'update_affiliate_status_url' => ['nullable', 'string', 'max:255', 'url'],
+            'distribution_rules_url' => ['nullable', 'string', 'max:255', 'url'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

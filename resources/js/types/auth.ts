@@ -30,6 +30,7 @@ export type Company = {
     release_ftd_url?: string | null;
     send_lead_url?: string | null;
     update_affiliate_status_url?: string | null;
+    distribution_rules_url?: string | null;
     is_active?: boolean;
     users_count?: number;
     last_synced_at?: string | null;
@@ -106,6 +107,30 @@ export type Advertiser = {
     meta: Record<string, unknown> | null;
     synced_at: string | null;
     company?: Pick<Company, 'id' | 'name'> | null;
+};
+
+export type DistributionRule = {
+    id: number;
+    company_id: number;
+    external_id: string;
+    affiliate_id: string | null;
+    advertiser_id: string | null;
+    country_code: string | null;
+    weight: number | null;
+    daily_cap: number | null;
+    hourly_cap: number | null;
+    is_active: boolean;
+    priority_type: 'primary' | 'fallback' | null;
+    priority: number | null;
+    start_time: string | null;
+    end_time: string | null;
+    weekly_schedule: Record<string, unknown> | null;
+    timezone: string | null;
+    meta: Record<string, unknown> | null;
+    synced_at: string | null;
+    company?: Pick<Company, 'id' | 'name'> | null;
+    /** Best-effort count of leads matching this rule's affiliate/advertiser/country — see DistributionRulesController. */
+    leads_count: number;
 };
 
 export type JobRun = {

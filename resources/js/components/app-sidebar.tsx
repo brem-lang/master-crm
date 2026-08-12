@@ -16,6 +16,7 @@ import {
     UserRoundX,
     UsersRound,
     Users,
+    Waypoints,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
@@ -38,14 +39,15 @@ import { index as companiesIndex } from '@/routes/companies';
 import { index as companyAuditLogIndex } from '@/routes/company-audit-log';
 import { index as companyHealthIndex } from '@/routes/company-health';
 import { index as directoryIndex } from '@/routes/directory';
+import { index as distributionRulesIndex } from '@/routes/distribution-rules';
 import { index as jobsIndex } from '@/routes/jobs';
-import { index as logsIndex } from '@/routes/logs';
 import {
     conversions as conversionsIndex,
     index as leadsIndex,
     leaderboard as leaderboardIndex,
     rejected as rejectedLeadsIndex,
 } from '@/routes/leads';
+import { index as logsIndex } from '@/routes/logs';
 import { index as myLeadsIndex } from '@/routes/my-leads';
 import { index as rolesIndex } from '@/routes/roles';
 import { index as usersIndex } from '@/routes/users';
@@ -129,6 +131,11 @@ export function AppSidebar() {
                       title: 'Advertisers',
                       href: advertisersIndex(),
                       icon: Megaphone,
+                  },
+                  {
+                      title: 'Distribution Rules',
+                      href: distributionRulesIndex(),
+                      icon: Waypoints,
                   },
               ]
             : []),

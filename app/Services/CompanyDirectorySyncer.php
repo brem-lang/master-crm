@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Advertiser;
 use App\Models\Affiliate;
 use App\Models\Company;
+use App\Models\DistributionRule;
 use App\Services\Concerns\BulkUpsertsExternalRecords;
 use App\Support\ChildCrmSyncException;
 use Illuminate\Support\Facades\Crypt;
@@ -25,6 +26,11 @@ class CompanyDirectorySyncer
 
     private const ADVERTISER_MAPPED_KEYS = [
         'id', 'name', 'advertiser_type', 'url', 'api_key', 'is_active', 'daily_cap', 'hourly_cap', 'default_deal_type',
+    ];
+
+    private const DISTRIBUTION_RULE_MAPPED_KEYS = [
+        'id', 'affiliate_id', 'advertiser_id', 'country_code', 'weight', 'daily_cap', 'hourly_cap',
+        'is_active', 'priority_type', 'priority', 'start_time', 'end_time', 'weekly_schedule', 'timezone',
     ];
 
     public function __construct(private readonly ChildCrmDirectoryClient $client) {}
@@ -66,10 +72,28 @@ class CompanyDirectorySyncer
     }
 
     /**
+     * @return array{success: bool, pulled: int, deleted: int, message: string}
+     */
+    public function syncDistributionRules(Company $company): array
+    {
+        return $this->sync(
+            company: $company,
+            urlField: 'distribution_rules_url',
+            sinceField: 'distribution_rules_last_synced_since',
+            cursorField: 'distribution_rules_last_synced_cursor',
+            lastSyncedAtField: 'distribution_rules_last_synced_at',
+            entityLabel: 'distribution rules',
+            model: DistributionRule::class,
+            fetchPage: fn (Company $c, int $page, int $limit, ?string $since) => $this->client->fetchDistributionRulesPage($c, $page, $limit, $since),
+            mapItem: fn (array $item) => $this->mapDistributionRule($item),
+        );
+    }
+
+    /**
      * Shared pagination/upsert loop for both affiliates and advertisers — same
      * shape as `CompanyLeadsSyncer::sync()`, parameterized over which entity.
      *
-     * @param  class-string<Affiliate|Advertiser>  $model
+     * @param  class-string<Affiliate|Advertiser|DistributionRule>  $model
      * @param  callable(Company, int, int, ?string): array<string, mixed>  $fetchPage
      * @param  callable(array<string, mixed>): array<string, mixed>  $mapItem
      * @return array{success: bool, pulled: int, deleted: int, message: string}
@@ -237,6 +261,31 @@ class CompanyDirectorySyncer
             'hourly_cap' => $item['hourly_cap'] ?? null,
             'default_deal_type' => $item['default_deal_type'] ?? null,
             'meta' => json_encode(array_diff_key($item, array_flip(self::ADVERTISER_MAPPED_KEYS))),
+            'synced_at' => now(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    private function mapDistributionRule(array $item): array
+    {
+        return [
+            'affiliate_id' => $item['affiliate_id'] ?? null,
+            'advertiser_id' => $item['advertiser_id'] ?? null,
+            'country_code' => $item['country_code'] ?? null,
+            'weight' => $item['weight'] ?? null,
+            'daily_cap' => $item['daily_cap'] ?? null,
+            'hourly_cap' => $item['hourly_cap'] ?? null,
+            'is_active' => (bool) ($item['is_active'] ?? false),
+            'priority_type' => $item['priority_type'] ?? null,
+            'priority' => $item['priority'] ?? null,
+            'start_time' => $item['start_time'] ?? null,
+            'end_time' => $item['end_time'] ?? null,
+            'weekly_schedule' => isset($item['weekly_schedule']) ? json_encode($item['weekly_schedule']) : null,
+            'timezone' => $item['timezone'] ?? null,
+            'meta' => json_encode(array_diff_key($item, array_flip(self::DISTRIBUTION_RULE_MAPPED_KEYS))),
             'synced_at' => now(),
         ];
     }

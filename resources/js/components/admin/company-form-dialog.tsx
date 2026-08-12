@@ -212,6 +212,25 @@ export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
                                 </div>
 
                                 <div className="grid gap-2">
+                                    <Label htmlFor="distribution_rules_url">
+                                        Distribution Rules API URL
+                                    </Label>
+                                    <Input
+                                        id="distribution_rules_url"
+                                        name="distribution_rules_url"
+                                        type="url"
+                                        defaultValue={
+                                            company?.distribution_rules_url ??
+                                            ''
+                                        }
+                                        placeholder="https://{project}.supabase.co/functions/v1/get-all-distribution-rules"
+                                    />
+                                    <InputError
+                                        message={errors.distribution_rules_url}
+                                    />
+                                </div>
+
+                                <div className="grid gap-2">
                                     <Label htmlFor="api_key">API Key</Label>
                                     <Input
                                         id="api_key"
