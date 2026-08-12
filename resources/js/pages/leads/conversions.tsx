@@ -2,12 +2,12 @@ import { Form, Head, router, usePage } from '@inertiajs/react';
 import { BadgeCheck, Check, Copy, Eye, MoreHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import LeadsController from '@/actions/App/Http/Controllers/LeadsController';
+import { AdvertiserResponseDialog } from '@/components/advertiser-response-dialog';
 import { BulkDeleteBar } from '@/components/bulk-delete-bar';
 import { BulkReleaseFtdBar } from '@/components/bulk-release-ftd-bar';
 import { CompactPagination } from '@/components/compact-pagination';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import Heading from '@/components/heading';
-import { LeadDetailsDialog } from '@/components/lead-details-dialog';
 import { RefreshButton } from '@/components/refresh-button';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -719,7 +719,7 @@ export default function ConversionsIndex() {
                     </Table>
                 </div>
 
-                <LeadDetailsDialog
+                <AdvertiserResponseDialog
                     lead={viewingLead ?? viewLead}
                     open={!!viewingLead || !!viewLead}
                     onOpenChange={(open) => {
