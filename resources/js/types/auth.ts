@@ -29,6 +29,7 @@ export type Company = {
     send_test_lead_url?: string | null;
     release_ftd_url?: string | null;
     send_lead_url?: string | null;
+    update_affiliate_status_url?: string | null;
     is_active?: boolean;
     users_count?: number;
     last_synced_at?: string | null;

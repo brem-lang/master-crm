@@ -158,6 +158,41 @@ class ChildCrmDirectoryClient
     }
 
     /**
+     * Notifies the child CRM that one of its affiliates' active/inactive
+     * status has changed. Same non-throwing shape as `releaseFtd()` — the
+     * child API's own message is what the admin needs to see on failure.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function updateAffiliateStatus(Company $company, array $payload): array
+    {
+        if (blank($company->update_affiliate_status_url)) {
+            return [
+                'status' => 422,
+                'body' => ['success' => false, 'message' => "No update-affiliate-status API URL is configured for {$company->name}."],
+            ];
+        }
+
+        try {
+            $response = $this->postJson($company, $company->update_affiliate_status_url, $payload);
+        } catch (ChildCrmSyncException $e) {
+            return ['status' => 502, 'body' => ['success' => false, 'message' => $e->getMessage()]];
+        }
+
+        $body = $response->json();
+
+        if (! is_array($body)) {
+            return [
+                'status' => 502,
+                'body' => ['success' => false, 'message' => "{$company->name}'s API returned an unreadable response."],
+            ];
+        }
+
+        return ['status' => $response->status(), 'body' => $body];
+    }
+
+    /**
      * @throws ChildCrmSyncException
      */
     private function fetchCount(Company $company, ?string $url, string $missingUrlMessage, string $countKey): int

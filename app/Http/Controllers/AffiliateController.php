@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Affiliate;
 use App\Models\AuditLog;
 use App\Models\Company;
+use App\Services\ChildCrmDirectoryClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -67,6 +68,94 @@ class AffiliateController extends Controller
         }
 
         return Inertia::render('affiliates/index', $props);
+    }
+
+    public function updateStatus(Request $request, Affiliate $affiliate, ChildCrmDirectoryClient $client): RedirectResponse
+    {
+        $user = $request->user();
+
+        $ownsCompany = $user->company_id && $user->company_id === $affiliate->company_id;
+
+        abort_unless($user->can('update-affiliates') && ($ownsCompany || $user->can('view-all-customers')), 403);
+
+        $validated = $request->validate([
+            'is_active' => ['required', 'boolean'],
+        ]);
+
+        $result = $client->updateAffiliateStatus($affiliate->company, [
+            'affiliate_id' => $affiliate->external_id,
+            'is_active' => $validated['is_active'],
+        ]);
+
+        if ($result['status'] < 200 || $result['status'] >= 300) {
+            Inertia::flash('toast', [
+                'type' => 'error',
+                'message' => $result['body']['message'] ?? __('Failed to update the affiliate status with the child CRM.'),
+            ]);
+
+            return back();
+        }
+
+        $affiliate->update(['is_active' => $validated['is_active']]);
+
+        AuditLog::record('affiliate.status_updated', $affiliate, ['is_active' => $validated['is_active']]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Affiliate status updated.')]);
+
+        return back();
+    }
+
+    public function bulkUpdateStatus(Request $request, ChildCrmDirectoryClient $client): RedirectResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->can('update-affiliates'), 403);
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer', 'exists:affiliates,id'],
+            'is_active' => ['required', 'boolean'],
+        ]);
+
+        // Eager-load `company` since `updateAffiliateStatus()` below hits each
+        // affiliate's child CRM over HTTP — without it, that call would trigger
+        // a fresh company query per affiliate.
+        $affiliates = Affiliate::whereIn('id', $validated['ids'])
+            ->where('is_active', ! $validated['is_active'])
+            ->with('company')
+            ->get()
+            ->filter(fn (Affiliate $affiliate) => $user->company_id === $affiliate->company_id || $user->can('view-all-customers'));
+
+        $updated = $affiliates->filter(function (Affiliate $affiliate) use ($client, $validated) {
+            $result = $client->updateAffiliateStatus($affiliate->company, [
+                'affiliate_id' => $affiliate->external_id,
+                'is_active' => $validated['is_active'],
+            ]);
+
+            if ($result['status'] < 200 || $result['status'] >= 300) {
+                return false;
+            }
+
+            $affiliate->update(['is_active' => $validated['is_active']]);
+
+            AuditLog::record('affiliate.status_updated', $affiliate, ['is_active' => $validated['is_active']]);
+
+            return true;
+        })->count();
+
+        $skipped = count($validated['ids']) - $updated;
+
+        $message = $validated['is_active']
+            ? trans_choice('{0} No affiliates activated.|{1} :count affiliate activated.|[2,*] :count affiliates activated.', $updated, ['count' => $updated])
+            : trans_choice('{0} No affiliates deactivated.|{1} :count affiliate deactivated.|[2,*] :count affiliates deactivated.', $updated, ['count' => $updated]);
+
+        if ($skipped > 0) {
+            $message .= ' '.trans_choice('{1} :count skipped (already in that state or ineligible).|[2,*] :count skipped (already in that state or ineligible).', $skipped, ['count' => $skipped]);
+        }
+
+        Inertia::flash('toast', ['type' => $updated > 0 ? 'success' : 'error', 'message' => $message]);
+
+        return back();
     }
 
     public function destroy(Request $request, Affiliate $affiliate): RedirectResponse

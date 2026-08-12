@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import AffiliateController from '@/actions/App/Http/Controllers/AffiliateController';
+import { BulkAffiliateStatusBar } from '@/components/bulk-affiliate-status-bar';
 import { BulkDeleteBar } from '@/components/bulk-delete-bar';
 import { DataPagination } from '@/components/data-pagination';
 import Heading from '@/components/heading';
@@ -227,6 +228,64 @@ function AffiliateDetailsDialog({
     );
 }
 
+function AffiliateStatusDialog({
+    affiliate,
+    open,
+    onOpenChange,
+}: {
+    affiliate: Affiliate | null;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}) {
+    const [processing, setProcessing] = useState(false);
+
+    if (!affiliate) {
+        return null;
+    }
+
+    const nextActive = !affiliate.is_active;
+
+    const handleConfirm = () => {
+        setProcessing(true);
+        router.patch(
+            AffiliateController.updateStatus(affiliate.id).url,
+            { is_active: nextActive },
+            {
+                preserveScroll: true,
+                onFinish: () => {
+                    setProcessing(false);
+                    onOpenChange(false);
+                },
+            },
+        );
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogTitle>
+                    Set {affiliate.name} {nextActive ? 'active' : 'inactive'}?
+                </DialogTitle>
+                <DialogDescription>
+                    This notifies the affiliate&apos;s child CRM that it should
+                    be marked as {nextActive ? 'active' : 'inactive'}.
+                </DialogDescription>
+
+                <DialogFooter className="gap-2">
+                    <DialogClose asChild>
+                        <Button variant="secondary">Cancel</Button>
+                    </DialogClose>
+
+                    <Button disabled={processing} onClick={handleConfirm}>
+                        {nextActive ? <Check /> : <Ban />}
+                        {nextActive ? 'Set Active' : 'Set Inactive'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 type PageProps = {
     auth: Auth;
     stats: { total: number; active: number; inactive: number };
@@ -246,9 +305,11 @@ export default function AffiliatesIndex() {
     const [viewingAffiliate, setViewingAffiliate] = useState<Affiliate | null>(
         null,
     );
-    const canDeleteAffiliates = auth.permissions?.includes(
-        'delete-affiliates',
-    );
+    const canDeleteAffiliates = auth.permissions?.includes('delete-affiliates');
+    const canUpdateAffiliateStatus =
+        auth.permissions?.includes('update-affiliates');
+    const [statusChangeAffiliate, setStatusChangeAffiliate] =
+        useState<Affiliate | null>(null);
     const selection = useRowSelection(affiliates.data, affiliates.current_page);
 
     const applyFilters = (next: Partial<typeof filters>) => {
@@ -361,6 +422,27 @@ export default function AffiliatesIndex() {
                     )}
                 </div>
 
+                {canUpdateAffiliateStatus && (
+                    <BulkAffiliateStatusBar
+                        count={selection.selectedIds.length}
+                        onConfirm={(isActive, onFinish) => {
+                            router.patch(
+                                AffiliateController.bulkUpdateStatus().url,
+                                {
+                                    ids: selection.selectedIds,
+                                    is_active: isActive,
+                                },
+                                {
+                                    preserveScroll: true,
+                                    onSuccess: () =>
+                                        selection.setSelectedIds([]),
+                                    onFinish,
+                                },
+                            );
+                        }}
+                    />
+                )}
+
                 {canDeleteAffiliates && (
                     <BulkDeleteBar
                         count={selection.selectedIds.length}
@@ -384,7 +466,8 @@ export default function AffiliatesIndex() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                {canDeleteAffiliates && (
+                                {(canDeleteAffiliates ||
+                                    canUpdateAffiliateStatus) && (
                                     <TableHead className="w-px">
                                         <Checkbox
                                             checked={
@@ -427,7 +510,10 @@ export default function AffiliatesIndex() {
                                 <TableRow>
                                     <TableCell
                                         colSpan={
-                                            canDeleteAffiliates ? 8 : 7
+                                            canDeleteAffiliates ||
+                                            canUpdateAffiliateStatus
+                                                ? 8
+                                                : 7
                                         }
                                         className="py-8 text-center text-sm text-muted-foreground"
                                     >
@@ -444,7 +530,8 @@ export default function AffiliatesIndex() {
                                                 : undefined
                                         }
                                     >
-                                        {canDeleteAffiliates && (
+                                        {(canDeleteAffiliates ||
+                                            canUpdateAffiliateStatus) && (
                                             <TableCell>
                                                 <Checkbox
                                                     checked={selection.isSelected(
@@ -524,6 +611,25 @@ export default function AffiliatesIndex() {
                                                         View
                                                     </DropdownMenuItem>
 
+                                                    {canUpdateAffiliateStatus && (
+                                                        <DropdownMenuItem
+                                                            onSelect={() =>
+                                                                setStatusChangeAffiliate(
+                                                                    affiliate,
+                                                                )
+                                                            }
+                                                        >
+                                                            {affiliate.is_active ? (
+                                                                <Ban />
+                                                            ) : (
+                                                                <Check />
+                                                            )}
+                                                            {affiliate.is_active
+                                                                ? 'Set Inactive'
+                                                                : 'Set Active'}
+                                                        </DropdownMenuItem>
+                                                    )}
+
                                                     {canDeleteAffiliates && (
                                                         <Dialog>
                                                             <DialogTrigger
@@ -553,11 +659,9 @@ export default function AffiliatesIndex() {
                                                                 <DialogDescription>
                                                                     This will
                                                                     permanently
-                                                                    delete
-                                                                    this
+                                                                    delete this
                                                                     affiliate.
-                                                                    This
-                                                                    action
+                                                                    This action
                                                                     cannot be
                                                                     undone.
                                                                 </DialogDescription>
@@ -611,6 +715,14 @@ export default function AffiliatesIndex() {
                     affiliate={viewingAffiliate}
                     open={!!viewingAffiliate}
                     onOpenChange={(open) => !open && setViewingAffiliate(null)}
+                />
+
+                <AffiliateStatusDialog
+                    affiliate={statusChangeAffiliate}
+                    open={!!statusChangeAffiliate}
+                    onOpenChange={(open) =>
+                        !open && setStatusChangeAffiliate(null)
+                    }
                 />
             </div>
         </>

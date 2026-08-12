@@ -33,6 +33,7 @@ class RoleSeeder extends Seeder
         $resendLeads = Permission::firstOrCreate(['name' => 'resend-leads']);
         $deleteLeads = Permission::firstOrCreate(['name' => 'delete-leads']);
         $deleteAffiliates = Permission::firstOrCreate(['name' => 'delete-affiliates']);
+        $updateAffiliates = Permission::firstOrCreate(['name' => 'update-affiliates']);
         $deleteAdvertisers = Permission::firstOrCreate(['name' => 'delete-advertisers']);
         $deleteRejectedLeads = Permission::firstOrCreate(['name' => 'delete-rejected-leads']);
         $viewSystemLogs = Permission::firstOrCreate(['name' => 'view-system-logs']);
@@ -52,13 +53,14 @@ class RoleSeeder extends Seeder
                 $resendLeads,
                 $deleteLeads,
                 $deleteAffiliates,
+                $updateAffiliates,
                 $deleteAdvertisers,
                 $deleteRejectedLeads,
                 $viewSystemLogs,
             ]);
 
         Role::firstOrCreate(['name' => 'child-admin'])
-            ->syncPermissions([$manageUsers, $impersonateUsers, $viewCompanyCustomers, $viewReports, $manageOwnCompany, $assignLeads, $sendTestLeads, $releaseFtd, $resendLeads]);
+            ->syncPermissions([$manageUsers, $impersonateUsers, $viewCompanyCustomers, $viewReports, $manageOwnCompany, $assignLeads, $sendTestLeads, $releaseFtd, $resendLeads, $updateAffiliates]);
 
         Role::firstOrCreate(['name' => 'sales-rep'])
             ->syncPermissions([$manageLeads, $logActivities]);

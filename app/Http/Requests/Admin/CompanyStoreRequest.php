@@ -31,6 +31,7 @@ class CompanyStoreRequest extends FormRequest
             'send_test_lead_url' => ['nullable', 'string', 'max:255', 'url'],
             'release_ftd_url' => ['nullable', 'string', 'max:255', 'url'],
             'send_lead_url' => ['nullable', 'string', 'max:255', 'url'],
+            'update_affiliate_status_url' => ['nullable', 'string', 'max:255', 'url'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }
