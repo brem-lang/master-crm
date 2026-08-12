@@ -218,6 +218,52 @@ class LeadsController extends Controller
         return back();
     }
 
+    public function bulkReleaseFtd(Request $request, ChildCrmDirectoryClient $client): RedirectResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->can('release-ftd'), 403);
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer', 'exists:leads,id'],
+        ]);
+
+        // Eager-load `company` since `releaseFtd()` below hits each lead's
+        // child CRM over HTTP — without it, that call would trigger a fresh
+        // company query per lead.
+        $leads = Lead::whereIn('id', $validated['ids'])
+            ->where('is_ftd', true)
+            ->where('ftd_released', false)
+            ->with('company')
+            ->get()
+            ->filter(fn (Lead $lead) => $user->company_id === $lead->company_id || $user->can('view-all-customers'));
+
+        $released = $leads->filter(function (Lead $lead) use ($client) {
+            $result = $client->releaseFtd($lead->company, ['lead_id' => $lead->external_id]);
+
+            if ($result['status'] < 200 || $result['status'] >= 300) {
+                return false;
+            }
+
+            $lead->update(['ftd_released' => true]);
+
+            return true;
+        })->count();
+
+        $skipped = count($validated['ids']) - $released;
+
+        $message = trans_choice('{0} No FTDs released.|{1} :count FTD released.|[2,*] :count FTDs released.', $released, ['count' => $released]);
+
+        if ($skipped > 0) {
+            $message .= ' '.trans_choice('{1} :count skipped (already released or ineligible).|[2,*] :count skipped (already released or ineligible).', $skipped, ['count' => $skipped]);
+        }
+
+        Inertia::flash('toast', ['type' => $released > 0 ? 'success' : 'error', 'message' => $message]);
+
+        return back();
+    }
+
     /**
      * The company/affiliate/advertiser a "Resend" dialog for this lead may
      * route to. Non-global users are locked to the lead's own company; a

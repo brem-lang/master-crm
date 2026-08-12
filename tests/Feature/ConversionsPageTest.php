@@ -267,3 +267,66 @@ test('a non-ftd lead cannot be released', function () {
 
     $response->assertStatus(422);
 });
+
+test('a child admin with release-ftd can bulk release pending ftds for their own company', function () {
+    $company = Company::factory()->create(['release_ftd_url' => 'https://example.com/functions/v1/release-ftd']);
+    $leadOne = Lead::factory()->create(['company_id' => $company->id, 'is_ftd' => true, 'ftd_released' => false]);
+    $leadTwo = Lead::factory()->create(['company_id' => $company->id, 'is_ftd' => true, 'ftd_released' => false]);
+
+    Http::fake([
+        'https://example.com/functions/v1/release-ftd*' => Http::response(['success' => true, 'message' => 'Released']),
+    ]);
+
+    $childAdmin = User::factory()->create(['company_id' => $company->id]);
+    $childAdmin->assignRole('child-admin');
+
+    $response = $this->actingAs($childAdmin)->patch(route('leads.conversions.bulk-release-ftd'), [
+        'ids' => [$leadOne->id, $leadTwo->id],
+    ]);
+
+    $response->assertRedirect();
+    expect($leadOne->fresh()->ftd_released)->toBeTrue();
+    expect($leadTwo->fresh()->ftd_released)->toBeTrue();
+    $response->assertInertiaFlash('toast.type', 'success');
+});
+
+test('bulk releasing skips already-released, non-ftd, and other-company leads', function () {
+    $company = Company::factory()->create(['release_ftd_url' => 'https://example.com/functions/v1/release-ftd']);
+    $otherCompany = Company::factory()->create(['release_ftd_url' => 'https://example.com/functions/v1/release-ftd']);
+
+    $pending = Lead::factory()->create(['company_id' => $company->id, 'is_ftd' => true, 'ftd_released' => false]);
+    $alreadyReleased = Lead::factory()->create(['company_id' => $company->id, 'is_ftd' => true, 'ftd_released' => true]);
+    $nonFtd = Lead::factory()->create(['company_id' => $company->id, 'is_ftd' => false, 'ftd_released' => false]);
+    $otherCompanyLead = Lead::factory()->create(['company_id' => $otherCompany->id, 'is_ftd' => true, 'ftd_released' => false]);
+
+    Http::fake([
+        'https://example.com/functions/v1/release-ftd*' => Http::response(['success' => true, 'message' => 'Released']),
+    ]);
+
+    $childAdmin = User::factory()->create(['company_id' => $company->id]);
+    $childAdmin->assignRole('child-admin');
+
+    $response = $this->actingAs($childAdmin)->patch(route('leads.conversions.bulk-release-ftd'), [
+        'ids' => [$pending->id, $alreadyReleased->id, $nonFtd->id, $otherCompanyLead->id],
+    ]);
+
+    $response->assertRedirect();
+    expect($pending->fresh()->ftd_released)->toBeTrue();
+    expect($otherCompanyLead->fresh()->ftd_released)->toBeFalse();
+    Http::assertSentCount(1);
+});
+
+test('a sales rep cannot bulk release ftds', function () {
+    $company = Company::factory()->create();
+    $lead = Lead::factory()->create(['company_id' => $company->id, 'is_ftd' => true, 'ftd_released' => false]);
+
+    $salesRep = User::factory()->create(['company_id' => $company->id]);
+    $salesRep->assignRole('sales-rep');
+
+    $response = $this->actingAs($salesRep)->patch(route('leads.conversions.bulk-release-ftd'), [
+        'ids' => [$lead->id],
+    ]);
+
+    $response->assertForbidden();
+    expect($lead->fresh()->ftd_released)->toBeFalse();
+});

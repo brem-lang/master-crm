@@ -1,15 +1,10 @@
 import { Form, Head, router, usePage } from '@inertiajs/react';
-import {
-    BadgeCheck,
-    Check,
-    Copy,
-    Eye,
-    MoreHorizontal,
-    Search,
-} from 'lucide-react';
+import { BadgeCheck, Check, Copy, Eye, MoreHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import LeadsController from '@/actions/App/Http/Controllers/LeadsController';
-import { DataPagination } from '@/components/data-pagination';
+import { BulkDeleteBar } from '@/components/bulk-delete-bar';
+import { BulkReleaseFtdBar } from '@/components/bulk-release-ftd-bar';
+import { CompactPagination } from '@/components/compact-pagination';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import Heading from '@/components/heading';
 import { LeadDetailsDialog } from '@/components/lead-details-dialog';
@@ -17,6 +12,7 @@ import { RefreshButton } from '@/components/refresh-button';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogClose,
@@ -53,6 +49,7 @@ import {
 } from '@/components/ui/table';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
+import { useRowSelection } from '@/hooks/use-row-selection';
 import { conversions as conversionsIndex } from '@/routes/leads';
 import type { Auth, Company, Lead, Paginator, User } from '@/types';
 
@@ -144,9 +141,11 @@ export default function ConversionsIndex() {
         filters,
     } = usePage<PageProps>().props;
     const canReleaseFtd = auth.permissions?.includes('release-ftd');
+    const canDeleteLeads = auth.permissions?.includes('delete-leads');
     const [search, setSearch] = useState(filters.search);
     const [viewingLead, setViewingLead] = useState<Lead | null>(null);
     const [releasingLeadId, setReleasingLeadId] = useState<number | null>(null);
+    const selection = useRowSelection(leads.data, leads.current_page);
 
     const applyFilters = (next: Partial<typeof filters>) => {
         router.get(
@@ -367,26 +366,80 @@ export default function ConversionsIndex() {
                                 )}
                             </div>
 
-                            <div className="relative w-full">
-                                <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                            <CompactPagination
+                                paginator={leads}
+                                filters={filters}
+                            >
                                 <Input
                                     value={search}
                                     onChange={(event) => {
                                         setSearch(event.target.value);
                                         debouncedSearch(event.target.value);
                                     }}
-                                    placeholder="Search by ID, name, email, phone…"
-                                    className="pl-8"
+                                    placeholder="Search ID, email, phone, IP…"
+                                    className="max-w-sm"
                                 />
-                            </div>
+                            </CompactPagination>
                         </CardContent>
                     </Card>
                 </div>
+
+                {canReleaseFtd && (
+                    <BulkReleaseFtdBar
+                        count={selection.selectedIds.length}
+                        onConfirm={(onFinish) => {
+                            router.patch(
+                                LeadsController.bulkReleaseFtd().url,
+                                { ids: selection.selectedIds },
+                                {
+                                    preserveScroll: true,
+                                    onSuccess: () =>
+                                        selection.setSelectedIds([]),
+                                    onFinish,
+                                },
+                            );
+                        }}
+                    />
+                )}
+
+                {canDeleteLeads && (
+                    <BulkDeleteBar
+                        count={selection.selectedIds.length}
+                        description="This will permanently delete the selected leads. This action cannot be undone."
+                        onConfirm={(onFinish) => {
+                            router.delete(LeadsController.bulkDestroy().url, {
+                                data: { ids: selection.selectedIds },
+                                preserveScroll: true,
+                                onSuccess: () => selection.setSelectedIds([]),
+                                onFinish,
+                            });
+                        }}
+                    />
+                )}
 
                 <div className="rounded-md border p-2">
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                {(canReleaseFtd || canDeleteLeads) && (
+                                    <TableHead className="w-px">
+                                        <Checkbox
+                                            checked={
+                                                selection.allSelected
+                                                    ? true
+                                                    : selection.someSelected
+                                                      ? 'indeterminate'
+                                                      : false
+                                            }
+                                            onCheckedChange={(checked) =>
+                                                selection.toggleAll(
+                                                    checked === true,
+                                                )
+                                            }
+                                            aria-label="Select all"
+                                        />
+                                    </TableHead>
+                                )}
                                 <TableHead>Lead ID</TableHead>
                                 <TableHead>First Name</TableHead>
                                 <TableHead>Last Name</TableHead>
@@ -428,6 +481,9 @@ export default function ConversionsIndex() {
                                 <TableRow>
                                     <TableCell
                                         colSpan={
+                                            (canReleaseFtd || canDeleteLeads
+                                                ? 1
+                                                : 0) +
                                             (companies ? 1 : 0) +
                                             (salesReps.length > 0 ? 1 : 0) +
                                             10
@@ -439,7 +495,32 @@ export default function ConversionsIndex() {
                                 </TableRow>
                             ) : (
                                 leads.data.map((lead) => (
-                                    <TableRow key={lead.id}>
+                                    <TableRow
+                                        key={lead.id}
+                                        data-state={
+                                            selection.isSelected(lead.id)
+                                                ? 'selected'
+                                                : undefined
+                                        }
+                                    >
+                                        {(canReleaseFtd || canDeleteLeads) && (
+                                            <TableCell>
+                                                <Checkbox
+                                                    checked={selection.isSelected(
+                                                        lead.id,
+                                                    )}
+                                                    onCheckedChange={(
+                                                        checked,
+                                                    ) =>
+                                                        selection.toggleOne(
+                                                            lead.id,
+                                                            checked === true,
+                                                        )
+                                                    }
+                                                    aria-label={`Select ${[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'lead'}`}
+                                                />
+                                            </TableCell>
+                                        )}
                                         <TableCell>
                                             <CopyableLeadId
                                                 externalId={lead.external_id}
@@ -637,8 +718,6 @@ export default function ConversionsIndex() {
                         </TableBody>
                     </Table>
                 </div>
-
-                <DataPagination paginator={leads} filters={filters} />
 
                 <LeadDetailsDialog
                     lead={viewingLead ?? viewLead}

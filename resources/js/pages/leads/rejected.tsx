@@ -1,9 +1,9 @@
 import { Form, Head, router, usePage } from '@inertiajs/react';
-import { Check, Copy, Eye, MoreHorizontal, Search, Trash2 } from 'lucide-react';
+import { Check, Copy, Eye, MoreHorizontal, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import LeadsController from '@/actions/App/Http/Controllers/LeadsController';
 import { BulkDeleteBar } from '@/components/bulk-delete-bar';
-import { DataPagination } from '@/components/data-pagination';
+import { CompactPagination } from '@/components/compact-pagination';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import Heading from '@/components/heading';
 import { RefreshButton } from '@/components/refresh-button';
@@ -331,18 +331,20 @@ export default function RejectedLeadsIndex() {
                                 )}
                             </div>
 
-                            <div className="relative w-full">
-                                <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                            <CompactPagination
+                                paginator={leads}
+                                filters={filters}
+                            >
                                 <Input
                                     value={search}
                                     onChange={(event) => {
                                         setSearch(event.target.value);
                                         debouncedSearch(event.target.value);
                                     }}
-                                    placeholder="Search by ID, name, email, phone…"
-                                    className="pl-8"
+                                    placeholder="Search ID, email, phone, IP…"
+                                    className="max-w-sm"
                                 />
-                            </div>
+                            </CompactPagination>
                         </CardContent>
                     </Card>
                 </div>
@@ -566,9 +568,7 @@ export default function RejectedLeadsIndex() {
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuItem
                                                         onSelect={() =>
-                                                            setViewingLead(
-                                                                lead,
-                                                            )
+                                                            setViewingLead(lead)
                                                         }
                                                     >
                                                         <Eye />
@@ -601,9 +601,8 @@ export default function RejectedLeadsIndex() {
                                                                 <DialogDescription>
                                                                     This will
                                                                     permanently
-                                                                    delete
-                                                                    this lead.
-                                                                    This
+                                                                    delete this
+                                                                    lead. This
                                                                     action
                                                                     cannot be
                                                                     undone.
@@ -651,8 +650,6 @@ export default function RejectedLeadsIndex() {
                         </TableBody>
                     </Table>
                 </div>
-
-                <DataPagination paginator={leads} filters={filters} />
 
                 <RejectionDetailsDialog
                     lead={viewingLead ?? viewLead}

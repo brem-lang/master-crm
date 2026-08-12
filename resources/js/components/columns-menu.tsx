@@ -141,13 +141,9 @@ export function ColumnsMenu({
     return (
         <Popover onOpenChange={(open) => !open && setSearch('')}>
             <PopoverTrigger asChild>
-                <Button
-                    variant="outline"
-                    size="icon"
-                    aria-label="Columns"
-                    className="shrink-0"
-                >
+                <Button variant="outline" className="shrink-0">
                     <Columns3 className="size-4" />
+                    Columns
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 p-1" align="start">

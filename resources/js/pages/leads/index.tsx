@@ -5,7 +5,6 @@ import {
     Download,
     Eye,
     MoreHorizontal,
-    Search,
     Send,
     Trash2,
 } from 'lucide-react';
@@ -14,7 +13,7 @@ import LeadsController from '@/actions/App/Http/Controllers/LeadsController';
 import { BulkAssignBar } from '@/components/bulk-assign-bar';
 import { BulkDeleteBar } from '@/components/bulk-delete-bar';
 import { ColumnsMenu } from '@/components/columns-menu';
-import { DataPagination } from '@/components/data-pagination';
+import { CompactPagination } from '@/components/compact-pagination';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import Heading from '@/components/heading';
 import { RefreshButton } from '@/components/refresh-button';
@@ -530,45 +529,7 @@ export default function LeadsIndex() {
                                     : "Leads pulled from your company's CRM"
                             }
                         />
-                        <div className="flex items-center gap-2">
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline">
-                                        <Download className="size-4" />
-                                        Export
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogTitle>Export leads?</DialogTitle>
-                                    <DialogDescription>
-                                        This will export all leads matching your
-                                        current filters to an Excel (.xlsx)
-                                        file.
-                                    </DialogDescription>
-                                    <DialogFooter className="gap-2">
-                                        <DialogClose asChild>
-                                            <Button variant="secondary">
-                                                Cancel
-                                            </Button>
-                                        </DialogClose>
-                                        <DialogClose asChild>
-                                            <Button
-                                                onClick={() => {
-                                                    window.location.href =
-                                                        exportLeads({
-                                                            query: filters,
-                                                        }).url;
-                                                }}
-                                            >
-                                                <Download className="size-4" />
-                                                Export
-                                            </Button>
-                                        </DialogClose>
-                                    </DialogFooter>
-                                </DialogContent>
-                            </Dialog>
-                            <RefreshButton />
-                        </div>
+                        <RefreshButton />
                     </div>
 
                     {/* {Object.keys(byStatus).length > 0 && (
@@ -741,20 +702,62 @@ export default function LeadsIndex() {
                                     hidden={hidden}
                                     onChange={updateColumnPreferences}
                                 />
+
+                                <Dialog>
+                                    <DialogTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            className="shrink-0"
+                                        >
+                                            <Download className="size-4" />
+                                            Export All
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogTitle>Export leads?</DialogTitle>
+                                        <DialogDescription>
+                                            This will export all leads matching
+                                            your current filters to an Excel
+                                            (.xlsx) file.
+                                        </DialogDescription>
+                                        <DialogFooter className="gap-2">
+                                            <DialogClose asChild>
+                                                <Button variant="secondary">
+                                                    Cancel
+                                                </Button>
+                                            </DialogClose>
+                                            <DialogClose asChild>
+                                                <Button
+                                                    onClick={() => {
+                                                        window.location.href =
+                                                            exportLeads({
+                                                                query: filters,
+                                                            }).url;
+                                                    }}
+                                                >
+                                                    <Download className="size-4" />
+                                                    Export
+                                                </Button>
+                                            </DialogClose>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
                             </div>
 
-                            <div className="relative w-full">
-                                <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                            <CompactPagination
+                                paginator={leads}
+                                filters={filters}
+                            >
                                 <Input
                                     value={search}
                                     onChange={(event) => {
                                         setSearch(event.target.value);
                                         debouncedSearch(event.target.value);
                                     }}
-                                    placeholder="Search by ID, name, email, phone…"
-                                    className="pl-8"
+                                    placeholder="Search ID, email, phone, IP…"
+                                    className="max-w-sm"
                                 />
-                            </div>
+                            </CompactPagination>
                         </CardContent>
                     </Card>
                 </div>
@@ -831,6 +834,22 @@ export default function LeadsIndex() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
+                            {leads.data.length === 0 && (
+                                <TableRow>
+                                    <TableCell
+                                        colSpan={
+                                            visibleColumns.length +
+                                            1 +
+                                            (canAssignLeads || canDeleteLeads
+                                                ? 1
+                                                : 0)
+                                        }
+                                        className="h-24 text-center text-muted-foreground"
+                                    >
+                                        No leads found.
+                                    </TableCell>
+                                </TableRow>
+                            )}
                             {leads.data.map((lead) => (
                                 <TableRow
                                     key={lead.id}
@@ -972,8 +991,6 @@ export default function LeadsIndex() {
                         </TableBody>
                     </Table>
                 </div>
-
-                <DataPagination paginator={leads} filters={filters} />
 
                 <RequestDetailsDialog
                     lead={viewingLead ?? viewLead}
