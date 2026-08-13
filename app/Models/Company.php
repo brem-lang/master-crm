@@ -27,6 +27,11 @@ use Illuminate\Support\Str;
  * @property string|null $release_ftd_url
  * @property string|null $send_lead_url
  * @property string|null $update_affiliate_status_url
+ * @property string|null $resend_lead_url
+ * @property string|null $update_distribution_rule_url
+ * @property string|null $update_advertiser_url
+ * @property string|null $update_affiliate_url
+ * @property string|null $get_affiliate_whitelisted_ips_url
  * @property string|null $distribution_rules_url
  * @property bool $is_active
  * @property Carbon|null $last_synced_at
@@ -48,7 +53,8 @@ use Illuminate\Support\Str;
 #[Fillable([
     'name', 'slug', 'website', 'api_url', 'api_key', 'leads_count_url', 'affiliates_url', 'advertisers_url',
     'affiliate_count_api_url', 'advertiser_count_api_url', 'send_test_lead_url', 'release_ftd_url', 'send_lead_url',
-    'update_affiliate_status_url', 'distribution_rules_url',
+    'update_affiliate_status_url', 'resend_lead_url', 'update_distribution_rule_url', 'update_advertiser_url',
+    'update_affiliate_url', 'get_affiliate_whitelisted_ips_url', 'distribution_rules_url',
     'is_active', 'last_synced_at', 'last_synced_since', 'last_synced_cursor',
     'affiliates_last_synced_at', 'affiliates_last_synced_since', 'affiliates_last_synced_cursor',
     'advertisers_last_synced_at', 'advertisers_last_synced_since', 'advertisers_last_synced_cursor',

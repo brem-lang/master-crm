@@ -30,6 +30,11 @@ export type Company = {
     release_ftd_url?: string | null;
     send_lead_url?: string | null;
     update_affiliate_status_url?: string | null;
+    resend_lead_url?: string | null;
+    update_distribution_rule_url?: string | null;
+    update_advertiser_url?: string | null;
+    update_affiliate_url?: string | null;
+    get_affiliate_whitelisted_ips_url?: string | null;
     distribution_rules_url?: string | null;
     is_active?: boolean;
     users_count?: number;

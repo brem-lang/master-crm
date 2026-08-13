@@ -6,11 +6,14 @@ import {
     Eye,
     FlaskConical,
     MoreHorizontal,
+    Pencil,
     Search,
     Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
 import AffiliateController from '@/actions/App/Http/Controllers/AffiliateController';
+import { AffiliateEditDialog } from '@/components/affiliate-edit-dialog';
+import { BulkAffiliateEditDialog } from '@/components/bulk-affiliate-edit-dialog';
 import { BulkAffiliateStatusBar } from '@/components/bulk-affiliate-status-bar';
 import { BulkDeleteBar } from '@/components/bulk-delete-bar';
 import { DataPagination } from '@/components/data-pagination';
@@ -310,6 +313,9 @@ export default function AffiliatesIndex() {
         auth.permissions?.includes('update-affiliates');
     const [statusChangeAffiliate, setStatusChangeAffiliate] =
         useState<Affiliate | null>(null);
+    const [editingAffiliate, setEditingAffiliate] = useState<Affiliate | null>(
+        null,
+    );
     const selection = useRowSelection(affiliates.data, affiliates.current_page);
 
     const applyFilters = (next: Partial<typeof filters>) => {
@@ -423,45 +429,77 @@ export default function AffiliatesIndex() {
                     )}
                 </div>
 
-                {canUpdateAffiliateStatus && (
-                    <BulkAffiliateStatusBar
-                        count={selection.selectedIds.length}
-                        onConfirm={(isActive, onFinish) => {
-                            router.patch(
-                                AffiliateController.bulkUpdateStatus().url,
-                                {
-                                    ids: selection.selectedIds,
-                                    is_active: isActive,
-                                },
-                                {
-                                    preserveScroll: true,
-                                    onSuccess: () =>
-                                        selection.setSelectedIds([]),
-                                    onFinish,
-                                },
-                            );
-                        }}
-                    />
-                )}
+                {(canUpdateAffiliateStatus || canDeleteAffiliates) &&
+                    selection.selectedIds.length > 0 && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/50 px-4 py-2">
+                            <span className="text-sm text-muted-foreground">
+                                {selection.selectedIds.length} selected
+                            </span>
 
-                {canDeleteAffiliates && (
-                    <BulkDeleteBar
-                        count={selection.selectedIds.length}
-                        description="This will permanently delete the selected affiliates. This action cannot be undone."
-                        onConfirm={(onFinish) => {
-                            router.delete(
-                                AffiliateController.bulkDestroy().url,
-                                {
-                                    data: { ids: selection.selectedIds },
-                                    preserveScroll: true,
-                                    onSuccess: () =>
-                                        selection.setSelectedIds([]),
-                                    onFinish,
-                                },
-                            );
-                        }}
-                    />
-                )}
+                            <div className="flex flex-wrap items-center gap-2">
+                                {canUpdateAffiliateStatus && (
+                                    <BulkAffiliateStatusBar
+                                        bare
+                                        count={selection.selectedIds.length}
+                                        onConfirm={(isActive, onFinish) => {
+                                            router.patch(
+                                                AffiliateController.bulkUpdateStatus()
+                                                    .url,
+                                                {
+                                                    ids: selection.selectedIds,
+                                                    is_active: isActive,
+                                                },
+                                                {
+                                                    preserveScroll: true,
+                                                    onSuccess: () =>
+                                                        selection.setSelectedIds(
+                                                            [],
+                                                        ),
+                                                    onFinish,
+                                                },
+                                            );
+                                        }}
+                                    />
+                                )}
+
+                                {canUpdateAffiliateStatus && (
+                                    <BulkAffiliateEditDialog
+                                        bare
+                                        count={selection.selectedIds.length}
+                                        selectedIds={selection.selectedIds}
+                                        onDone={() =>
+                                            selection.setSelectedIds([])
+                                        }
+                                    />
+                                )}
+
+                                {canDeleteAffiliates && (
+                                    <BulkDeleteBar
+                                        bare
+                                        count={selection.selectedIds.length}
+                                        description="This will permanently delete the selected affiliates. This action cannot be undone."
+                                        onConfirm={(onFinish) => {
+                                            router.delete(
+                                                AffiliateController.bulkDestroy()
+                                                    .url,
+                                                {
+                                                    data: {
+                                                        ids: selection.selectedIds,
+                                                    },
+                                                    preserveScroll: true,
+                                                    onSuccess: () =>
+                                                        selection.setSelectedIds(
+                                                            [],
+                                                        ),
+                                                    onFinish,
+                                                },
+                                            );
+                                        }}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                 <div className="rounded-md border">
                     <Table>
@@ -615,6 +653,19 @@ export default function AffiliatesIndex() {
                                                     {canUpdateAffiliateStatus && (
                                                         <DropdownMenuItem
                                                             onSelect={() =>
+                                                                setEditingAffiliate(
+                                                                    affiliate,
+                                                                )
+                                                            }
+                                                        >
+                                                            <Pencil />
+                                                            Edit
+                                                        </DropdownMenuItem>
+                                                    )}
+
+                                                    {canUpdateAffiliateStatus && (
+                                                        <DropdownMenuItem
+                                                            onSelect={() =>
                                                                 setStatusChangeAffiliate(
                                                                     affiliate,
                                                                 )
@@ -724,6 +775,13 @@ export default function AffiliatesIndex() {
                     onOpenChange={(open) =>
                         !open && setStatusChangeAffiliate(null)
                     }
+                />
+
+                <AffiliateEditDialog
+                    key={editingAffiliate?.id ?? 'none'}
+                    affiliate={editingAffiliate}
+                    open={!!editingAffiliate}
+                    onOpenChange={(open) => !open && setEditingAffiliate(null)}
                 />
             </div>
         </>

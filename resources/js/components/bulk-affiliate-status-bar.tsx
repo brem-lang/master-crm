@@ -14,6 +14,12 @@ import {
 type Props = {
     count: number;
     onConfirm: (isActive: boolean, onFinish: () => void) => void;
+    /**
+     * When true, renders only the action controls (the two status buttons)
+     * without the outer wrapper or "N selected" label, so it can be
+     * composed alongside other bulk actions in a single row.
+     */
+    bare?: boolean;
 };
 
 function StatusAction({
@@ -72,9 +78,24 @@ function StatusAction({
     );
 }
 
-export function BulkAffiliateStatusBar({ count, onConfirm }: Props) {
+export function BulkAffiliateStatusBar({
+    count,
+    onConfirm,
+    bare = false,
+}: Props) {
     if (count === 0) {
         return null;
+    }
+
+    const actions = (
+        <div className="flex items-center gap-2">
+            <StatusAction count={count} isActive={false} onConfirm={onConfirm} />
+            <StatusAction count={count} isActive={true} onConfirm={onConfirm} />
+        </div>
+    );
+
+    if (bare) {
+        return actions;
     }
 
     return (
@@ -83,18 +104,7 @@ export function BulkAffiliateStatusBar({ count, onConfirm }: Props) {
                 {count} selected
             </span>
 
-            <div className="flex items-center gap-2">
-                <StatusAction
-                    count={count}
-                    isActive={false}
-                    onConfirm={onConfirm}
-                />
-                <StatusAction
-                    count={count}
-                    isActive={true}
-                    onConfirm={onConfirm}
-                />
-            </div>
+            {actions}
         </div>
     );
 }

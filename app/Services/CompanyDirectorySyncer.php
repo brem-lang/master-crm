@@ -227,20 +227,44 @@ class CompanyDirectorySyncer
     }
 
     /**
-     * Builds DB-ready attributes for a bulk upsert — `meta` and `api_key` are
-     * pre-serialized here since a raw upsert bypasses the model's `array`
-     * cast and `encrypted` cast respectively.
-     *
      * @param  array<string, mixed>  $item
      * @return array<string, mixed>
      */
     private function mapAffiliate(array $item): array
     {
+        $attributes = self::affiliateAttributes($item);
+
+        // Raw upsert bypasses the model's `encrypted`/`array` casts, so
+        // api_key and meta are pre-encrypted/pre-encoded here — unlike
+        // `affiliateAttributes()` itself, which stays cast-friendly for a
+        // normal Eloquent update.
+        $attributes['api_key'] = $this->encryptApiKey($attributes['api_key']);
+        $attributes['meta'] = json_encode($attributes['meta']);
+
+        return $attributes;
+    }
+
+    /**
+     * Maps an affiliate's child-CRM JSON shape to Eloquent-ready attributes
+     * (api_key left as plaintext for the model's own `encrypted` cast to
+     * handle, meta left as an array) — shared by `mapAffiliate()` above
+     * (which then pre-encrypts/pre-encodes for its raw upsert) and
+     * `AffiliateController::update()`, so an affiliate edited by hand ends
+     * up with exactly the same local shape as one pulled in by the regular
+     * sync. Everything not in `AFFILIATE_MAPPED_KEYS` — `callback_url`,
+     * `allowed_countries`, `test_mode`, `ip_whitelist_required`,
+     * `allowed_ips`, etc. — falls into `meta`, same as the regular sync.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    public static function affiliateAttributes(array $item): array
+    {
         return [
             'name' => $item['name'] ?? null,
-            'api_key' => $this->encryptApiKey($item['api_key'] ?? null),
+            'api_key' => $item['api_key'] ?? null,
             'is_active' => (bool) ($item['is_active'] ?? false),
-            'meta' => json_encode(array_diff_key($item, array_flip(self::AFFILIATE_MAPPED_KEYS))),
+            'meta' => array_diff_key($item, array_flip(self::AFFILIATE_MAPPED_KEYS)),
             'synced_at' => now(),
         ];
     }
@@ -251,16 +275,42 @@ class CompanyDirectorySyncer
      */
     private function mapAdvertiser(array $item): array
     {
+        $attributes = self::advertiserAttributes($item);
+
+        // Raw upsert bypasses the model's `encrypted`/`array` casts, so
+        // api_key and meta are pre-encrypted/pre-encoded here — unlike
+        // `advertiserAttributes()` itself, which stays cast-friendly for a
+        // normal Eloquent update.
+        $attributes['api_key'] = $this->encryptApiKey($attributes['api_key']);
+        $attributes['meta'] = json_encode($attributes['meta']);
+
+        return $attributes;
+    }
+
+    /**
+     * Maps an advertiser's child-CRM JSON shape to Eloquent-ready attributes
+     * (api_key left as plaintext for the model's own `encrypted` cast to
+     * handle, meta left as an array) — shared by `mapAdvertiser()` above
+     * (which then pre-encrypts/pre-encodes for its raw upsert) and
+     * `AdvertiserController::update()`, so an advertiser edited by hand ends
+     * up with exactly the same local shape as one pulled in by the regular
+     * sync.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    public static function advertiserAttributes(array $item): array
+    {
         return [
             'name' => $item['name'] ?? null,
             'advertiser_type' => $item['advertiser_type'] ?? null,
             'url' => $item['url'] ?? null,
-            'api_key' => $this->encryptApiKey($item['api_key'] ?? null),
+            'api_key' => $item['api_key'] ?? null,
             'is_active' => (bool) ($item['is_active'] ?? false),
             'daily_cap' => $item['daily_cap'] ?? null,
             'hourly_cap' => $item['hourly_cap'] ?? null,
             'default_deal_type' => $item['default_deal_type'] ?? null,
-            'meta' => json_encode(array_diff_key($item, array_flip(self::ADVERTISER_MAPPED_KEYS))),
+            'meta' => array_diff_key($item, array_flip(self::ADVERTISER_MAPPED_KEYS)),
             'synced_at' => now(),
         ];
     }
@@ -270,6 +320,31 @@ class CompanyDirectorySyncer
      * @return array<string, mixed>
      */
     private function mapDistributionRule(array $item): array
+    {
+        $attributes = self::distributionRuleAttributes($item);
+
+        // Raw upsert bypasses the model's `array` cast, so the two JSON
+        // columns are pre-encoded here — unlike `distributionRuleAttributes()`
+        // itself, which stays cast-friendly for a normal Eloquent update.
+        $attributes['weekly_schedule'] = $attributes['weekly_schedule'] !== null ? json_encode($attributes['weekly_schedule']) : null;
+        $attributes['meta'] = json_encode($attributes['meta']);
+
+        return $attributes;
+    }
+
+    /**
+     * Maps a distribution rule's child-CRM JSON shape to Eloquent-ready
+     * attributes (arrays left as arrays, for the model's own casts to
+     * handle) — shared by `mapDistributionRule()` above (which then
+     * pre-encodes the JSON columns for its raw upsert) and
+     * `DistributionRulesController::update()`, so a rule edited by hand ends
+     * up with exactly the same local shape as one pulled in by the regular
+     * sync.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    public static function distributionRuleAttributes(array $item): array
     {
         return [
             'affiliate_id' => $item['affiliate_id'] ?? null,
@@ -283,9 +358,9 @@ class CompanyDirectorySyncer
             'priority' => $item['priority'] ?? null,
             'start_time' => $item['start_time'] ?? null,
             'end_time' => $item['end_time'] ?? null,
-            'weekly_schedule' => isset($item['weekly_schedule']) ? json_encode($item['weekly_schedule']) : null,
+            'weekly_schedule' => $item['weekly_schedule'] ?? null,
             'timezone' => $item['timezone'] ?? null,
-            'meta' => json_encode(array_diff_key($item, array_flip(self::DISTRIBUTION_RULE_MAPPED_KEYS))),
+            'meta' => array_diff_key($item, array_flip(self::DISTRIBUTION_RULE_MAPPED_KEYS)),
             'synced_at' => now(),
         ];
     }

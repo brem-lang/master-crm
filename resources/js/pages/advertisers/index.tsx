@@ -8,6 +8,7 @@ import {
     KeyRound,
     Loader2,
     MoreHorizontal,
+    Pencil,
     RefreshCw,
     Search,
     Send,
@@ -20,6 +21,8 @@ import {
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import AdvertiserController from '@/actions/App/Http/Controllers/AdvertiserController';
+import { AdvertiserEditDialog } from '@/components/advertiser-edit-dialog';
+import { BulkAdvertiserEditDialog } from '@/components/bulk-advertiser-edit-dialog';
 import { BulkDeleteBar } from '@/components/bulk-delete-bar';
 import { DataPagination } from '@/components/data-pagination';
 import Heading from '@/components/heading';
@@ -799,10 +802,14 @@ export default function AdvertisersIndex() {
     const canSendTestLeads = auth.permissions?.includes('send-test-leads');
     const canDeleteAdvertisers =
         auth.permissions?.includes('delete-advertisers');
+    const canUpdateAdvertisers =
+        auth.permissions?.includes('update-advertisers');
     const [search, setSearch] = useState(filters.search);
     const [viewingAdvertiser, setViewingAdvertiser] =
         useState<Advertiser | null>(null);
     const [sendingTestLeadTo, setSendingTestLeadTo] =
+        useState<Advertiser | null>(null);
+    const [editingAdvertiser, setEditingAdvertiser] =
         useState<Advertiser | null>(null);
     const selection = useRowSelection(
         advertisers.data,
@@ -920,30 +927,59 @@ export default function AdvertisersIndex() {
                     )}
                 </div>
 
-                {canDeleteAdvertisers && (
-                    <BulkDeleteBar
-                        count={selection.selectedIds.length}
-                        description="This will permanently delete the selected advertisers. This action cannot be undone."
-                        onConfirm={(onFinish) => {
-                            router.delete(
-                                AdvertiserController.bulkDestroy().url,
-                                {
-                                    data: { ids: selection.selectedIds },
-                                    preserveScroll: true,
-                                    onSuccess: () =>
-                                        selection.setSelectedIds([]),
-                                    onFinish,
-                                },
-                            );
-                        }}
-                    />
-                )}
+                {(canUpdateAdvertisers || canDeleteAdvertisers) &&
+                    selection.selectedIds.length > 0 && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/50 px-4 py-2">
+                            <span className="text-sm text-muted-foreground">
+                                {selection.selectedIds.length} selected
+                            </span>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                {canUpdateAdvertisers && (
+                                    <BulkAdvertiserEditDialog
+                                        bare
+                                        count={selection.selectedIds.length}
+                                        selectedIds={selection.selectedIds}
+                                        onDone={() =>
+                                            selection.setSelectedIds([])
+                                        }
+                                    />
+                                )}
+
+                                {canDeleteAdvertisers && (
+                                    <BulkDeleteBar
+                                        bare
+                                        count={selection.selectedIds.length}
+                                        description="This will permanently delete the selected advertisers. This action cannot be undone."
+                                        onConfirm={(onFinish) => {
+                                            router.delete(
+                                                AdvertiserController.bulkDestroy()
+                                                    .url,
+                                                {
+                                                    data: {
+                                                        ids: selection.selectedIds,
+                                                    },
+                                                    preserveScroll: true,
+                                                    onSuccess: () =>
+                                                        selection.setSelectedIds(
+                                                            [],
+                                                        ),
+                                                    onFinish,
+                                                },
+                                            );
+                                        }}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                 <div className="rounded-md border">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                {canDeleteAdvertisers && (
+                                {(canUpdateAdvertisers ||
+                                    canDeleteAdvertisers) && (
                                     <TableHead className="w-px">
                                         <Checkbox
                                             checked={
@@ -982,7 +1018,12 @@ export default function AdvertisersIndex() {
                             {advertisers.data.length === 0 ? (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={canDeleteAdvertisers ? 7 : 6}
+                                        colSpan={
+                                            (canUpdateAdvertisers ||
+                                            canDeleteAdvertisers
+                                                ? 1
+                                                : 0) + 6
+                                        }
                                         className="py-8 text-center text-sm text-muted-foreground"
                                     >
                                         No advertisers synced yet.
@@ -998,7 +1039,8 @@ export default function AdvertisersIndex() {
                                                 : undefined
                                         }
                                     >
-                                        {canDeleteAdvertisers && (
+                                        {(canUpdateAdvertisers ||
+                                            canDeleteAdvertisers) && (
                                             <TableCell>
                                                 <Checkbox
                                                     checked={selection.isSelected(
@@ -1073,6 +1115,18 @@ export default function AdvertisersIndex() {
                                                         <Eye />
                                                         View
                                                     </DropdownMenuItem>
+                                                    {canUpdateAdvertisers && (
+                                                        <DropdownMenuItem
+                                                            onSelect={() =>
+                                                                setEditingAdvertiser(
+                                                                    advertiser,
+                                                                )
+                                                            }
+                                                        >
+                                                            <Pencil />
+                                                            Edit
+                                                        </DropdownMenuItem>
+                                                    )}
                                                     {canSendTestLeads && (
                                                         <DropdownMenuItem
                                                             onSelect={() =>
@@ -1177,6 +1231,15 @@ export default function AdvertisersIndex() {
                     advertiser={sendingTestLeadTo}
                     open={!!sendingTestLeadTo}
                     onOpenChange={(open) => !open && setSendingTestLeadTo(null)}
+                />
+
+                <AdvertiserEditDialog
+                    key={editingAdvertiser?.id ?? 'none'}
+                    advertiser={editingAdvertiser}
+                    open={!!editingAdvertiser}
+                    onOpenChange={(open) =>
+                        !open && setEditingAdvertiser(null)
+                    }
                 />
             </div>
         </>

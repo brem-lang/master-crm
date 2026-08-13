@@ -12,6 +12,7 @@ import { useState } from 'react';
 import LeadsController from '@/actions/App/Http/Controllers/LeadsController';
 import { BulkAssignBar } from '@/components/bulk-assign-bar';
 import { BulkDeleteBar } from '@/components/bulk-delete-bar';
+import { BulkResendDialog } from '@/components/bulk-resend-dialog';
 import { ColumnsMenu } from '@/components/columns-menu';
 import { CompactPagination } from '@/components/compact-pagination';
 import { DateRangeFilter } from '@/components/date-range-filter';
@@ -762,42 +763,77 @@ export default function LeadsIndex() {
                     </Card>
                 </div>
 
-                {canAssignLeads && (
-                    <BulkAssignBar
-                        count={selection.selectedIds.length}
-                        reps={salesReps}
-                        onAssign={(assignedTo, onFinish) => {
-                            router.patch(
-                                bulkAssign().url,
-                                {
-                                    ids: selection.selectedIds,
-                                    assigned_to: assignedTo,
-                                },
-                                {
-                                    preserveScroll: true,
-                                    onSuccess: () =>
-                                        selection.setSelectedIds([]),
-                                    onFinish,
-                                },
-                            );
-                        }}
-                    />
-                )}
+                {(canAssignLeads || canDeleteLeads || canResendLeads) &&
+                    selection.selectedIds.length > 0 && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/50 px-4 py-2">
+                            <span className="text-sm text-muted-foreground">
+                                {selection.selectedIds.length} selected
+                            </span>
 
-                {canDeleteLeads && (
-                    <BulkDeleteBar
-                        count={selection.selectedIds.length}
-                        description="This will permanently delete the selected leads. This action cannot be undone."
-                        onConfirm={(onFinish) => {
-                            router.delete(LeadsController.bulkDestroy().url, {
-                                data: { ids: selection.selectedIds },
-                                preserveScroll: true,
-                                onSuccess: () => selection.setSelectedIds([]),
-                                onFinish,
-                            });
-                        }}
-                    />
-                )}
+                            <div className="flex flex-wrap items-center gap-2">
+                                {canAssignLeads && (
+                                    <BulkAssignBar
+                                        bare
+                                        count={selection.selectedIds.length}
+                                        reps={salesReps}
+                                        onAssign={(assignedTo, onFinish) => {
+                                            router.patch(
+                                                bulkAssign().url,
+                                                {
+                                                    ids: selection.selectedIds,
+                                                    assigned_to: assignedTo,
+                                                },
+                                                {
+                                                    preserveScroll: true,
+                                                    onSuccess: () =>
+                                                        selection.setSelectedIds(
+                                                            [],
+                                                        ),
+                                                    onFinish,
+                                                },
+                                            );
+                                        }}
+                                    />
+                                )}
+
+                                {canResendLeads && (
+                                    <BulkResendDialog
+                                        bare
+                                        count={selection.selectedIds.length}
+                                        selectedIds={selection.selectedIds}
+                                        onDone={() =>
+                                            selection.setSelectedIds([])
+                                        }
+                                    />
+                                )}
+
+                                {canDeleteLeads && (
+                                    <BulkDeleteBar
+                                        bare
+                                        count={selection.selectedIds.length}
+                                        description="This will permanently delete the selected leads. This action cannot be undone."
+                                        onConfirm={(onFinish) => {
+                                            router.delete(
+                                                LeadsController.bulkDestroy()
+                                                    .url,
+                                                {
+                                                    data: {
+                                                        ids: selection.selectedIds,
+                                                    },
+                                                    preserveScroll: true,
+                                                    onSuccess: () =>
+                                                        selection.setSelectedIds(
+                                                            [],
+                                                        ),
+                                                    onFinish,
+                                                },
+                                            );
+                                        }}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                 <div className="rounded-md border p-2">
                     <Table>

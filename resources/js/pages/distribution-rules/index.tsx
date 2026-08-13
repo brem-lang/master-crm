@@ -1,12 +1,15 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { Eye, MoreHorizontal } from 'lucide-react';
+import { Eye, MoreHorizontal, Pencil } from 'lucide-react';
 import { useState } from 'react';
+import { BulkDistributionRuleEditDialog } from '@/components/bulk-distribution-rule-edit-dialog';
 import { DataPagination } from '@/components/data-pagination';
+import { DistributionRuleEditDialog } from '@/components/distribution-rule-edit-dialog';
 import Heading from '@/components/heading';
 import { RefreshButton } from '@/components/refresh-button';
 import { StatCard } from '@/components/stat-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -36,8 +39,9 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { useRowSelection } from '@/hooks/use-row-selection';
 import { index as distributionRulesIndex } from '@/routes/distribution-rules';
-import type { Company, DistributionRule, Paginator } from '@/types';
+import type { Auth, Company, DistributionRule, Paginator } from '@/types';
 
 function statusBadgeClass(isActive: boolean): string {
     return isActive
@@ -195,6 +199,7 @@ function DistributionRuleDetailsDialog({
 }
 
 type PageProps = {
+    auth: Auth;
     stats: { total: number; active: number; inactive: number };
     rules: Paginator<DistributionRule>;
     companies?: Pick<Company, 'id' | 'name'>[];
@@ -207,10 +212,18 @@ type PageProps = {
 };
 
 export default function DistributionRulesIndex() {
-    const { stats, rules, companies, filters } = usePage<PageProps>().props;
+    const { auth, stats, rules, companies, filters } =
+        usePage<PageProps>().props;
     const [viewingRule, setViewingRule] = useState<DistributionRule | null>(
         null,
     );
+    const [editingRule, setEditingRule] = useState<DistributionRule | null>(
+        null,
+    );
+    const canUpdateDistributionRules = auth.permissions?.includes(
+        'update-distribution-rules',
+    );
+    const selection = useRowSelection(rules.data, rules.current_page);
 
     const applyFilters = (next: Partial<typeof filters>) => {
         router.get(
@@ -328,10 +341,38 @@ export default function DistributionRulesIndex() {
                     )}
                 </div>
 
+                {canUpdateDistributionRules &&
+                    selection.selectedIds.length > 0 && (
+                        <BulkDistributionRuleEditDialog
+                            count={selection.selectedIds.length}
+                            selectedIds={selection.selectedIds}
+                            onDone={() => selection.setSelectedIds([])}
+                        />
+                    )}
+
                 <div className="rounded-md border">
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                {canUpdateDistributionRules && (
+                                    <TableHead className="w-px">
+                                        <Checkbox
+                                            checked={
+                                                selection.allSelected
+                                                    ? true
+                                                    : selection.someSelected
+                                                      ? 'indeterminate'
+                                                      : false
+                                            }
+                                            onCheckedChange={(checked) =>
+                                                selection.toggleAll(
+                                                    checked === true,
+                                                )
+                                            }
+                                            aria-label="Select all"
+                                        />
+                                    </TableHead>
+                                )}
                                 <TableHead>External ID</TableHead>
                                 <TableHead>Affiliate</TableHead>
                                 <TableHead className="hidden lg:table-cell">
@@ -356,7 +397,12 @@ export default function DistributionRulesIndex() {
                             {rules.data.length === 0 ? (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={10}
+                                        colSpan={
+                                            10 +
+                                            (canUpdateDistributionRules
+                                                ? 1
+                                                : 0)
+                                        }
                                         className="py-8 text-center text-sm text-muted-foreground"
                                     >
                                         No distribution rules synced yet.
@@ -364,7 +410,32 @@ export default function DistributionRulesIndex() {
                                 </TableRow>
                             ) : (
                                 rules.data.map((rule) => (
-                                    <TableRow key={rule.id}>
+                                    <TableRow
+                                        key={rule.id}
+                                        data-state={
+                                            selection.isSelected(rule.id)
+                                                ? 'selected'
+                                                : undefined
+                                        }
+                                    >
+                                        {canUpdateDistributionRules && (
+                                            <TableCell>
+                                                <Checkbox
+                                                    checked={selection.isSelected(
+                                                        rule.id,
+                                                    )}
+                                                    onCheckedChange={(
+                                                        checked,
+                                                    ) =>
+                                                        selection.toggleOne(
+                                                            rule.id,
+                                                            checked === true,
+                                                        )
+                                                    }
+                                                    aria-label={`Select rule ${rule.external_id}`}
+                                                />
+                                            </TableCell>
+                                        )}
                                         <TableCell className="font-mono text-xs">
                                             {rule.external_id.slice(0, 8)}
                                         </TableCell>
@@ -441,6 +512,19 @@ export default function DistributionRulesIndex() {
                                                         <Eye />
                                                         View
                                                     </DropdownMenuItem>
+
+                                                    {canUpdateDistributionRules && (
+                                                        <DropdownMenuItem
+                                                            onSelect={() =>
+                                                                setEditingRule(
+                                                                    rule,
+                                                                )
+                                                            }
+                                                        >
+                                                            <Pencil />
+                                                            Edit
+                                                        </DropdownMenuItem>
+                                                    )}
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </TableCell>
@@ -457,6 +541,13 @@ export default function DistributionRulesIndex() {
                     rule={viewingRule}
                     open={!!viewingRule}
                     onOpenChange={(open) => !open && setViewingRule(null)}
+                />
+
+                <DistributionRuleEditDialog
+                    key={editingRule?.id ?? 'none'}
+                    rule={editingRule}
+                    open={!!editingRule}
+                    onOpenChange={(open) => !open && setEditingRule(null)}
                 />
             </div>
         </>

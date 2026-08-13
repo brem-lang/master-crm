@@ -14,10 +14,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/leads/conversions/bulk-release-ftd', [LeadsController::class, 'bulkReleaseFtd'])->name('leads.conversions.bulk-release-ftd');
     Route::get('/leads/{lead}/resend-options', [LeadsController::class, 'resendOptions'])->name('leads.resend-options');
     Route::patch('/leads/{lead}/resend', [LeadsController::class, 'resend'])->name('leads.resend');
+    Route::get('/leads/bulk-resend-options', [LeadsController::class, 'bulkResendOptions'])->name('leads.bulk-resend-options');
+    Route::patch('/leads/bulk-resend', [LeadsController::class, 'bulkResend'])->name('leads.bulk-resend');
     Route::patch('/leads/bulk-assign', [LeadsController::class, 'bulkAssign'])->name('leads.bulk-assign');
     Route::patch('/leads/column-preferences', [LeadsController::class, 'updateColumnPreferences'])->name('leads.column-preferences.update');
     Route::delete('/leads/bulk-destroy', [LeadsController::class, 'bulkDestroy'])->name('leads.bulk-destroy');
     Route::delete('/leads/rejected/bulk-destroy', [LeadsController::class, 'bulkDestroyRejected'])->name('leads.rejected.bulk-destroy');
+    Route::get('/leads/rejected/bulk-resend-options', [LeadsController::class, 'bulkResendRejectedOptions'])->name('leads.rejected.bulk-resend-options');
+    Route::patch('/leads/rejected/bulk-resend', [LeadsController::class, 'bulkResendRejected'])->name('leads.rejected.bulk-resend');
+    Route::get('/leads/rejected/{lead}/resend-options', [LeadsController::class, 'rejectedResendOptions'])->name('leads.rejected.resend-options');
+    Route::patch('/leads/rejected/{lead}/resend', [LeadsController::class, 'resendRejected'])->name('leads.rejected.resend');
     Route::delete('/leads/rejected/{lead}', [LeadsController::class, 'destroyRejected'])->name('leads.rejected.destroy');
     Route::delete('/leads/{lead}', [LeadsController::class, 'destroy'])->name('leads.destroy');
     Route::get('/leads/leaderboard', [SalesRepLeaderboardController::class, 'index'])->name('leads.leaderboard');

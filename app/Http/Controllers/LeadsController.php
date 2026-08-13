@@ -403,6 +403,148 @@ class LeadsController extends Controller
         ], fn ($value) => $value !== null && $value !== '');
     }
 
+    /**
+     * The company/affiliate/advertiser a bulk "Resend" dialog may route to.
+     * Same rules as {@see resendOptions()}, but not scoped to one lead —
+     * non-global users are locked to their own company; a parent admin may
+     * target any active company via `?company_id=`.
+     */
+    public function bulkResendOptions(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->can('resend-leads'), 403);
+
+        $allCompanies = $user->can('view-all-customers');
+
+        abort_if(! $allCompanies && ! $user->company_id, 403);
+
+        $companyId = $allCompanies ? ($request->integer('company_id') ?: $user->company_id) : $user->company_id;
+
+        return response()->json([
+            'affiliates' => Affiliate::where('company_id', $companyId)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'external_id', 'name']),
+            'advertisers' => Advertiser::where('company_id', $companyId)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'external_id', 'name']),
+            'companies' => $allCompanies
+                ? Company::where('is_active', true)->orderBy('name')->get(['id', 'name'])
+                : null,
+        ]);
+    }
+
+    /**
+     * Resends every selected lead to the same admin-chosen
+     * company/affiliate/advertiser, one {@see resend()}-style child-CRM call
+     * per lead. Leads the user isn't allowed to touch are silently skipped,
+     * mirroring the other bulk actions.
+     */
+    public function bulkResend(Request $request, ChildCrmDirectoryClient $client): RedirectResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->can('resend-leads'), 403);
+
+        $allCompanies = $user->can('view-all-customers');
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer', 'exists:leads,id'],
+            'company_id' => ['nullable', 'integer', Rule::exists(Company::class, 'id')->where('is_active', true)],
+        ]);
+
+        // Only a parent admin may redirect leads to a company other than
+        // their own — everyone else stays locked to their own company,
+        // regardless of what `company_id` they send.
+        $companyId = $allCompanies ? ($validated['company_id'] ?? $user->company_id) : $user->company_id;
+
+        abort_if(! $companyId, 403);
+
+        $company = Company::findOrFail($companyId);
+
+        $validated += $request->validate([
+            'affiliate_id' => [
+                'required',
+                'string',
+                Rule::exists(Affiliate::class, 'external_id')->where('company_id', $companyId)->where('is_active', true),
+            ],
+            'advertiser_id' => [
+                'required',
+                'string',
+                Rule::exists(Advertiser::class, 'external_id')->where('company_id', $companyId)->where('is_active', true),
+            ],
+        ]);
+
+        $leads = Lead::whereIn('id', $validated['ids'])->get();
+
+        $eligible = $leads->filter(function (Lead $lead) use ($user, $allCompanies) {
+            $ownsCompany = $user->company_id && $user->company_id === $lead->company_id;
+
+            return $ownsCompany || $allCompanies;
+        });
+
+        $sent = 0;
+        $failed = 0;
+
+        foreach ($eligible as $lead) {
+            $payload = $this->buildResendPayload($lead, $validated['affiliate_id'], $validated['advertiser_id']);
+            $result = $client->resendLead($company, $payload);
+
+            if ($result['status'] < 200 || $result['status'] >= 300) {
+                $failed++;
+
+                continue;
+            }
+
+            $sent++;
+
+            $lead->update([
+                'meta' => [
+                    ...$lead->meta ?? [],
+                    'lead_distributions' => [
+                        ...$lead->distributions(),
+                        [
+                            'status' => 'resent',
+                            'sent_at' => now()->toIso8601String(),
+                            'company_id' => $company->id,
+                            'affiliate_id' => $validated['affiliate_id'],
+                            'advertiser_id' => $validated['advertiser_id'],
+                            'triggered_by' => $user->id,
+                            'request_payload' => $payload,
+                            'request_url' => $company->send_lead_url,
+                            'response' => $result['body'],
+                        ],
+                    ],
+                ],
+            ]);
+
+            AuditLog::record('lead.resent', $lead, [
+                'company_id' => $company->id,
+                'affiliate_id' => $validated['affiliate_id'],
+                'advertiser_id' => $validated['advertiser_id'],
+            ]);
+        }
+
+        $skipped = $leads->count() - $eligible->count();
+
+        $message = trans_choice('{0} No leads resent.|{1} :count lead resent.|[2,*] :count leads resent.', $sent, ['count' => $sent]);
+
+        if ($failed > 0) {
+            $message .= ' '.trans_choice('{1} :count failed.|[2,*] :count failed.', $failed, ['count' => $failed]);
+        }
+
+        if ($skipped > 0) {
+            $message .= ' '.trans_choice('{1} :count skipped (different company).|[2,*] :count skipped (different company).', $skipped, ['count' => $skipped]);
+        }
+
+        Inertia::flash('toast', ['type' => $sent > 0 ? 'success' : 'error', 'message' => $message]);
+
+        return back();
+    }
+
     public function assign(Request $request, Lead $lead): RedirectResponse
     {
         $user = $request->user();
@@ -561,6 +703,222 @@ class LeadsController extends Controller
             ->count();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => trans_choice('{0} No leads deleted.|{1} :count lead deleted.|[2,*] :count leads deleted.', $deleted, ['count' => $deleted])]);
+
+        return back();
+    }
+
+    /**
+     * The affiliate/advertiser a rejected lead's "Resend" dialog may route
+     * to — always scoped to the lead's own company, since a rejected lead
+     * only exists in its own child CRM (unlike the general resend, there's
+     * no cross-company redirect here).
+     */
+    public function rejectedResendOptions(Request $request, Lead $lead): JsonResponse
+    {
+        $user = $request->user();
+
+        $ownsCompany = $user->company_id && $user->company_id === $lead->company_id;
+
+        abort_unless($user->can('resend-leads') && ($ownsCompany || $user->can('view-all-customers')), 403);
+
+        return response()->json([
+            'affiliates' => Affiliate::where('company_id', $lead->company_id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'external_id', 'name']),
+            'advertisers' => Advertiser::where('company_id', $lead->company_id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'external_id', 'name']),
+        ]);
+    }
+
+    /**
+     * Re-submits a rejected lead to the child CRM's `resend-lead` endpoint,
+     * routed to an admin-chosen affiliate/advertiser within the lead's own
+     * company. The child API's own response — including its rejection
+     * reasons (country not allowed, same affiliate, already sent, etc.) —
+     * is relayed to the admin as-is, same non-throwing pattern as `resend()`.
+     * On success the lead is deleted — it now belongs to a different
+     * affiliate/advertiser and is no longer rejected, so it drops off this
+     * page rather than lingering as a stale row.
+     */
+    public function resendRejected(Request $request, Lead $lead, ChildCrmDirectoryClient $client): JsonResponse
+    {
+        $user = $request->user();
+
+        $ownsCompany = $user->company_id && $user->company_id === $lead->company_id;
+
+        abort_unless($user->can('resend-leads') && ($ownsCompany || $user->can('view-all-customers')), 403);
+        abort_unless($lead->status === 'rejected', 422);
+
+        $validated = $request->validate([
+            'affiliate_id' => [
+                'required',
+                'string',
+                Rule::exists(Affiliate::class, 'external_id')->where('company_id', $lead->company_id)->where('is_active', true),
+            ],
+            'advertiser_id' => [
+                'required',
+                'string',
+                Rule::exists(Advertiser::class, 'external_id')->where('company_id', $lead->company_id)->where('is_active', true),
+            ],
+        ]);
+
+        $company = $lead->company;
+
+        $payload = [
+            'lead_id' => $lead->external_id,
+            'affiliate_id' => $validated['affiliate_id'],
+            'advertiser_id' => $validated['advertiser_id'],
+        ];
+
+        $result = $client->resendRejectedLead($company, $payload);
+
+        if ($result['status'] >= 200 && $result['status'] < 300) {
+            // The lead now belongs to a different affiliate/advertiser in the
+            // child CRM and is no longer rejected — its full history is kept
+            // on the audit log entry, so it's removed here rather than left
+            // behind as a stale row on the Rejected Leads page.
+            AuditLog::record('lead.resent', $lead, [
+                'affiliate_id' => $validated['affiliate_id'],
+                'advertiser_id' => $validated['advertiser_id'],
+                'request_payload' => $payload,
+                'request_url' => $company->resend_lead_url,
+                'response' => $result['body'],
+            ]);
+
+            $lead->delete();
+        }
+
+        return response()->json($result['body'], $result['status']);
+    }
+
+    /**
+     * The affiliate/advertiser a bulk "Resend" dialog on the Rejected Leads
+     * page may preview — not tied to one lead, since the selection can span
+     * companies. `company_id` is only used to narrow this preview; the
+     * actual bulk resend below re-validates per lead against its own
+     * company regardless of what's chosen here.
+     */
+    public function bulkResendRejectedOptions(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->can('resend-leads'), 403);
+
+        $allCompanies = $user->can('view-all-customers');
+
+        abort_if(! $allCompanies && ! $user->company_id, 403);
+
+        $companyId = $allCompanies ? ($request->integer('company_id') ?: $user->company_id) : $user->company_id;
+
+        return response()->json([
+            'affiliates' => Affiliate::where('company_id', $companyId)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'external_id', 'name']),
+            'advertisers' => Advertiser::where('company_id', $companyId)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'external_id', 'name']),
+            'companies' => $allCompanies
+                ? Company::where('is_active', true)->orderBy('name')->get(['id', 'name'])
+                : null,
+        ]);
+    }
+
+    /**
+     * Resends every selected rejected lead, one {@see resendRejected()}-style
+     * child-CRM call per lead — including deleting each on success, since it
+     * no longer belongs on this page. `affiliate_id`/`advertiser_id` are
+     * plain strings here — since each lead can belong to a different
+     * company, validity is checked per lead below rather than centrally.
+     * Leads the user can't touch, or for which the chosen
+     * affiliate/advertiser isn't valid, are skipped, mirroring the other
+     * bulk actions.
+     */
+    public function bulkResendRejected(Request $request, ChildCrmDirectoryClient $client): RedirectResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->can('resend-leads'), 403);
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer', 'exists:leads,id'],
+            'affiliate_id' => ['required', 'string'],
+            'advertiser_id' => ['required', 'string'],
+        ]);
+
+        $leads = Lead::whereIn('id', $validated['ids'])->where('status', 'rejected')->get();
+
+        $sent = 0;
+        $failed = 0;
+        $skipped = 0;
+
+        foreach ($leads as $lead) {
+            $ownsCompany = $user->company_id && $user->company_id === $lead->company_id;
+
+            $affiliateValid = Affiliate::where('company_id', $lead->company_id)
+                ->where('external_id', $validated['affiliate_id'])
+                ->where('is_active', true)
+                ->exists();
+
+            $advertiserValid = Advertiser::where('company_id', $lead->company_id)
+                ->where('external_id', $validated['advertiser_id'])
+                ->where('is_active', true)
+                ->exists();
+
+            if (! ($ownsCompany || $user->can('view-all-customers')) || ! $affiliateValid || ! $advertiserValid) {
+                $skipped++;
+
+                continue;
+            }
+
+            $company = $lead->company;
+
+            $payload = [
+                'lead_id' => $lead->external_id,
+                'affiliate_id' => $validated['affiliate_id'],
+                'advertiser_id' => $validated['advertiser_id'],
+            ];
+
+            $result = $client->resendRejectedLead($company, $payload);
+
+            if ($result['status'] < 200 || $result['status'] >= 300) {
+                $failed++;
+
+                continue;
+            }
+
+            $sent++;
+
+            // Same as the single-lead resend: the lead now belongs to a
+            // different affiliate/advertiser and is no longer rejected, so
+            // it's removed rather than left behind on this page.
+            AuditLog::record('lead.resent', $lead, [
+                'affiliate_id' => $validated['affiliate_id'],
+                'advertiser_id' => $validated['advertiser_id'],
+                'request_payload' => $payload,
+                'request_url' => $company->resend_lead_url,
+                'response' => $result['body'],
+            ]);
+
+            $lead->delete();
+        }
+
+        $message = trans_choice('{0} No leads resent.|{1} :count lead resent.|[2,*] :count leads resent.', $sent, ['count' => $sent]);
+
+        if ($failed > 0) {
+            $message .= ' '.trans_choice('{1} :count failed.|[2,*] :count failed.', $failed, ['count' => $failed]);
+        }
+
+        if ($skipped > 0) {
+            $message .= ' '.trans_choice('{1} :count skipped.|[2,*] :count skipped.', $skipped, ['count' => $skipped]);
+        }
+
+        Inertia::flash('toast', ['type' => $sent > 0 ? 'success' : 'error', 'message' => $message]);
 
         return back();
     }

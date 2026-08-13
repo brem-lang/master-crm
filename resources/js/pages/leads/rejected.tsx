@@ -1,13 +1,15 @@
 import { Form, Head, router, usePage } from '@inertiajs/react';
-import { Check, Copy, Eye, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Check, Copy, Eye, MoreHorizontal, Send, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import LeadsController from '@/actions/App/Http/Controllers/LeadsController';
 import { BulkDeleteBar } from '@/components/bulk-delete-bar';
+import { BulkResendRejectedDialog } from '@/components/bulk-resend-rejected-dialog';
 import { CompactPagination } from '@/components/compact-pagination';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import Heading from '@/components/heading';
 import { RefreshButton } from '@/components/refresh-button';
 import { RejectionDetailsDialog } from '@/components/rejection-details-dialog';
+import { ResendRejectedLeadDialog } from '@/components/resend-rejected-lead-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -134,9 +136,11 @@ export default function RejectedLeadsIndex() {
     } = usePage<PageProps>().props;
     const [search, setSearch] = useState(filters.search);
     const [viewingLead, setViewingLead] = useState<Lead | null>(null);
+    const [resendingLead, setResendingLead] = useState<Lead | null>(null);
     const canDeleteRejectedLeads = auth.permissions?.includes(
         'delete-rejected-leads',
     );
+    const canResendLeads = auth.permissions?.includes('resend-leads');
     const selection = useRowSelection(leads.data, leads.current_page);
 
     const applyFilters = (next: Partial<typeof filters>) => {
@@ -349,30 +353,59 @@ export default function RejectedLeadsIndex() {
                     </Card>
                 </div>
 
-                {canDeleteRejectedLeads && (
-                    <BulkDeleteBar
-                        count={selection.selectedIds.length}
-                        description="This will permanently delete the selected rejected leads. This action cannot be undone."
-                        onConfirm={(onFinish) => {
-                            router.delete(
-                                LeadsController.bulkDestroyRejected().url,
-                                {
-                                    data: { ids: selection.selectedIds },
-                                    preserveScroll: true,
-                                    onSuccess: () =>
-                                        selection.setSelectedIds([]),
-                                    onFinish,
-                                },
-                            );
-                        }}
-                    />
-                )}
+                {(canResendLeads || canDeleteRejectedLeads) &&
+                    selection.selectedIds.length > 0 && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/50 px-4 py-2">
+                            <span className="text-sm text-muted-foreground">
+                                {selection.selectedIds.length} selected
+                            </span>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                {canResendLeads && (
+                                    <BulkResendRejectedDialog
+                                        bare
+                                        count={selection.selectedIds.length}
+                                        selectedIds={selection.selectedIds}
+                                        onDone={() =>
+                                            selection.setSelectedIds([])
+                                        }
+                                    />
+                                )}
+
+                                {canDeleteRejectedLeads && (
+                                    <BulkDeleteBar
+                                        bare
+                                        count={selection.selectedIds.length}
+                                        description="This will permanently delete the selected rejected leads. This action cannot be undone."
+                                        onConfirm={(onFinish) => {
+                                            router.delete(
+                                                LeadsController.bulkDestroyRejected()
+                                                    .url,
+                                                {
+                                                    data: {
+                                                        ids: selection.selectedIds,
+                                                    },
+                                                    preserveScroll: true,
+                                                    onSuccess: () =>
+                                                        selection.setSelectedIds(
+                                                            [],
+                                                        ),
+                                                    onFinish,
+                                                },
+                                            );
+                                        }}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                 <div className="rounded-md border p-2">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                {canDeleteRejectedLeads && (
+                                {(canResendLeads ||
+                                    canDeleteRejectedLeads) && (
                                     <TableHead className="w-px">
                                         <Checkbox
                                             checked={
@@ -434,7 +467,10 @@ export default function RejectedLeadsIndex() {
                                 <TableRow>
                                     <TableCell
                                         colSpan={
-                                            (canDeleteRejectedLeads ? 1 : 0) +
+                                            (canResendLeads ||
+                                            canDeleteRejectedLeads
+                                                ? 1
+                                                : 0) +
                                             (companies ? 1 : 0) +
                                             (salesReps.length > 0 ? 1 : 0) +
                                             11
@@ -454,7 +490,8 @@ export default function RejectedLeadsIndex() {
                                                 : undefined
                                         }
                                     >
-                                        {canDeleteRejectedLeads && (
+                                        {(canResendLeads ||
+                                            canDeleteRejectedLeads) && (
                                             <TableCell>
                                                 <Checkbox
                                                     checked={selection.isSelected(
@@ -575,6 +612,19 @@ export default function RejectedLeadsIndex() {
                                                         View
                                                     </DropdownMenuItem>
 
+                                                    {canResendLeads && (
+                                                        <DropdownMenuItem
+                                                            onSelect={() =>
+                                                                setResendingLead(
+                                                                    lead,
+                                                                )
+                                                            }
+                                                        >
+                                                            <Send />
+                                                            Resend
+                                                        </DropdownMenuItem>
+                                                    )}
+
                                                     {canDeleteRejectedLeads && (
                                                         <Dialog>
                                                             <DialogTrigger
@@ -663,6 +713,13 @@ export default function RejectedLeadsIndex() {
                             }
                         }
                     }}
+                />
+
+                <ResendRejectedLeadDialog
+                    key={resendingLead?.id ?? 'none'}
+                    lead={resendingLead}
+                    open={!!resendingLead}
+                    onOpenChange={(open) => !open && setResendingLead(null)}
                 />
             </div>
         </>

@@ -32,6 +32,11 @@ class CompanyStoreRequest extends FormRequest
             'release_ftd_url' => ['nullable', 'string', 'max:255', 'url'],
             'send_lead_url' => ['nullable', 'string', 'max:255', 'url'],
             'update_affiliate_status_url' => ['nullable', 'string', 'max:255', 'url'],
+            'resend_lead_url' => ['nullable', 'string', 'max:255', 'url'],
+            'update_distribution_rule_url' => ['nullable', 'string', 'max:255', 'url'],
+            'update_advertiser_url' => ['nullable', 'string', 'max:255', 'url'],
+            'update_affiliate_url' => ['nullable', 'string', 'max:255', 'url'],
+            'get_affiliate_whitelisted_ips_url' => ['nullable', 'string', 'max:255', 'url'],
             'distribution_rules_url' => ['nullable', 'string', 'max:255', 'url'],
             'is_active' => ['sometimes', 'boolean'],
         ];

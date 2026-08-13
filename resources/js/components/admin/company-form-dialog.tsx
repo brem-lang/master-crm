@@ -212,6 +212,103 @@ export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
                                 </div>
 
                                 <div className="grid gap-2">
+                                    <Label htmlFor="update_advertiser_url">
+                                        Update Advertiser API URL
+                                    </Label>
+                                    <Input
+                                        id="update_advertiser_url"
+                                        name="update_advertiser_url"
+                                        type="url"
+                                        defaultValue={
+                                            company?.update_advertiser_url ??
+                                            ''
+                                        }
+                                        placeholder="https://{project}.supabase.co/functions/v1/update-advertiser"
+                                    />
+                                    <InputError
+                                        message={errors.update_advertiser_url}
+                                    />
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="update_affiliate_url">
+                                        Update Affiliate API URL
+                                    </Label>
+                                    <Input
+                                        id="update_affiliate_url"
+                                        name="update_affiliate_url"
+                                        type="url"
+                                        defaultValue={
+                                            company?.update_affiliate_url ?? ''
+                                        }
+                                        placeholder="https://{project}.supabase.co/functions/v1/update-affiliate"
+                                    />
+                                    <InputError
+                                        message={errors.update_affiliate_url}
+                                    />
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="get_affiliate_whitelisted_ips_url">
+                                        Affiliate Whitelisted IPs API URL
+                                    </Label>
+                                    <Input
+                                        id="get_affiliate_whitelisted_ips_url"
+                                        name="get_affiliate_whitelisted_ips_url"
+                                        type="url"
+                                        defaultValue={
+                                            company?.get_affiliate_whitelisted_ips_url ??
+                                            ''
+                                        }
+                                        placeholder="https://{project}.supabase.co/functions/v1/get-affiliate-whitelisted-ips"
+                                    />
+                                    <InputError
+                                        message={
+                                            errors.get_affiliate_whitelisted_ips_url
+                                        }
+                                    />
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="resend_lead_url">
+                                        Resend Lead API URL
+                                    </Label>
+                                    <Input
+                                        id="resend_lead_url"
+                                        name="resend_lead_url"
+                                        type="url"
+                                        defaultValue={
+                                            company?.resend_lead_url ?? ''
+                                        }
+                                        placeholder="https://{project}.supabase.co/functions/v1/resend-lead"
+                                    />
+                                    <InputError
+                                        message={errors.resend_lead_url}
+                                    />
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="update_distribution_rule_url">
+                                        Update Distribution Rule API URL
+                                    </Label>
+                                    <Input
+                                        id="update_distribution_rule_url"
+                                        name="update_distribution_rule_url"
+                                        type="url"
+                                        defaultValue={
+                                            company?.update_distribution_rule_url ??
+                                            ''
+                                        }
+                                        placeholder="https://{project}.supabase.co/functions/v1/update-distribution-rule"
+                                    />
+                                    <InputError
+                                        message={
+                                            errors.update_distribution_rule_url
+                                        }
+                                    />
+                                </div>
+
+                                <div className="grid gap-2">
                                     <Label htmlFor="distribution_rules_url">
                                         Distribution Rules API URL
                                     </Label>

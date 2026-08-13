@@ -168,6 +168,42 @@ class ChildCrmDirectoryClient
     }
 
     /**
+     * Re-submits a rejected lead to the child CRM's `resend-lead` endpoint,
+     * routed to a different affiliate/advertiser within the same company —
+     * unlike {@see resendLead()}, there's no cross-company redirect here,
+     * since a rejected lead only exists in its own child CRM.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function resendRejectedLead(Company $company, array $payload): array
+    {
+        if (blank($company->resend_lead_url)) {
+            return [
+                'status' => 422,
+                'body' => ['success' => false, 'message' => "No resend-lead API URL is configured for {$company->name}."],
+            ];
+        }
+
+        try {
+            $response = $this->postJson($company, $company->resend_lead_url, $payload);
+        } catch (ChildCrmSyncException $e) {
+            return ['status' => 502, 'body' => ['success' => false, 'message' => $e->getMessage()]];
+        }
+
+        $body = $response->json();
+
+        if (! is_array($body)) {
+            return [
+                'status' => 502,
+                'body' => ['success' => false, 'message' => "{$company->name}'s API returned an unreadable response."],
+            ];
+        }
+
+        return ['status' => $response->status(), 'body' => $body];
+    }
+
+    /**
      * Notifies the child CRM that one of its affiliates' active/inactive
      * status has changed. Same non-throwing shape as `releaseFtd()` — the
      * child API's own message is what the admin needs to see on failure.
@@ -200,6 +236,146 @@ class ChildCrmDirectoryClient
         }
 
         return ['status' => $response->status(), 'body' => $body];
+    }
+
+    /**
+     * Pushes an edit to one of the child CRM's own distribution rules — any
+     * subset of the editable fields may be sent. Same non-throwing shape as
+     * `updateAffiliateStatus()`: the child API's own response (including its
+     * field-level validation errors) is relayed to the admin as-is.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function updateDistributionRule(Company $company, array $payload): array
+    {
+        if (blank($company->update_distribution_rule_url)) {
+            return [
+                'status' => 422,
+                'body' => ['success' => false, 'message' => "No update-distribution-rule API URL is configured for {$company->name}."],
+            ];
+        }
+
+        try {
+            $response = $this->postJson($company, $company->update_distribution_rule_url, $payload);
+        } catch (ChildCrmSyncException $e) {
+            return ['status' => 502, 'body' => ['success' => false, 'message' => $e->getMessage()]];
+        }
+
+        $body = $response->json();
+
+        if (! is_array($body)) {
+            return [
+                'status' => 502,
+                'body' => ['success' => false, 'message' => "{$company->name}'s API returned an unreadable response."],
+            ];
+        }
+
+        return ['status' => $response->status(), 'body' => $body];
+    }
+
+    /**
+     * Pushes an edit to one of the child CRM's own advertisers — any subset
+     * of the editable fields may be sent. Same non-throwing shape as
+     * `updateDistributionRule()`: the child API's own response (including
+     * its field-level validation errors) is relayed to the admin as-is.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function updateAdvertiser(Company $company, array $payload): array
+    {
+        if (blank($company->update_advertiser_url)) {
+            return [
+                'status' => 422,
+                'body' => ['success' => false, 'message' => "No update-advertiser API URL is configured for {$company->name}."],
+            ];
+        }
+
+        try {
+            $response = $this->postJson($company, $company->update_advertiser_url, $payload);
+        } catch (ChildCrmSyncException $e) {
+            return ['status' => 502, 'body' => ['success' => false, 'message' => $e->getMessage()]];
+        }
+
+        $body = $response->json();
+
+        if (! is_array($body)) {
+            return [
+                'status' => 502,
+                'body' => ['success' => false, 'message' => "{$company->name}'s API returned an unreadable response."],
+            ];
+        }
+
+        return ['status' => $response->status(), 'body' => $body];
+    }
+
+    /**
+     * Pushes an edit to one of the child CRM's own affiliates — any subset
+     * of the editable fields may be sent. Same non-throwing shape as
+     * `updateAdvertiser()`: the child API's own response (including its
+     * field-level validation errors) is relayed to the admin as-is.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function updateAffiliate(Company $company, array $payload): array
+    {
+        if (blank($company->update_affiliate_url)) {
+            return [
+                'status' => 422,
+                'body' => ['success' => false, 'message' => "No update-affiliate API URL is configured for {$company->name}."],
+            ];
+        }
+
+        try {
+            $response = $this->postJson($company, $company->update_affiliate_url, $payload);
+        } catch (ChildCrmSyncException $e) {
+            return ['status' => 502, 'body' => ['success' => false, 'message' => $e->getMessage()]];
+        }
+
+        $body = $response->json();
+
+        if (! is_array($body)) {
+            return [
+                'status' => 502,
+                'body' => ['success' => false, 'message' => "{$company->name}'s API returned an unreadable response."],
+            ];
+        }
+
+        return ['status' => $response->status(), 'body' => $body];
+    }
+
+    /**
+     * Live-fetches every affiliate with IP-whitelist enforcement turned on
+     * for a company — a small reporting query, not part of the regular
+     * directory sync, so nothing is persisted locally; the child CRM's own
+     * `name`/`allowed_ips` in the response are shown as-is.
+     *
+     * @return array{success: bool, total?: int, page: int, pages: int, count?: int, data: list<array<string, mixed>>}
+     *
+     * @throws ChildCrmSyncException
+     */
+    public function fetchWhitelistedAffiliateIps(Company $company, int $page = 0, int $limit = 100): array
+    {
+        if (blank($company->get_affiliate_whitelisted_ips_url)) {
+            throw new ChildCrmSyncException("No affiliate-whitelisted-ips API URL is configured for {$company->name}.");
+        }
+
+        // The configured URL is the complete, ready-to-call endpoint (may already carry
+        // its own query string) — merge rather than replace it, same as fetchPage().
+        $urlParts = parse_url($company->get_affiliate_whitelisted_ips_url);
+        parse_str($urlParts['query'] ?? '', $existingQuery);
+        $query = [...$existingQuery, 'ip_whitelist_required' => 'true', 'page' => $page, 'limit' => $limit];
+
+        $response = $this->request($company, strtok($company->get_affiliate_whitelisted_ips_url, '?'), $query);
+        $body = $response->json();
+
+        if (! is_array($body)) {
+            throw new ChildCrmSyncException("{$company->name}'s API returned an unreadable response.");
+        }
+
+        return $body;
     }
 
     /**

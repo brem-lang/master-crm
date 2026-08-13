@@ -9,6 +9,7 @@ import {
     ListChecks,
     Globe,
     LayoutGrid,
+    Lock,
     Megaphone,
     Settings,
     ShieldCheck,
@@ -33,7 +34,10 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { index as advertisersIndex } from '@/routes/advertisers';
-import { index as affiliatesIndex } from '@/routes/affiliates';
+import {
+    index as affiliatesIndex,
+    whitelistedIps as affiliateWhitelistedIpsIndex,
+} from '@/routes/affiliates';
 import { index as auditLogIndex } from '@/routes/audit-log';
 import { index as companiesIndex } from '@/routes/companies';
 import { index as companyAuditLogIndex } from '@/routes/company-audit-log';
@@ -126,6 +130,11 @@ export function AppSidebar() {
                       title: 'Affiliates',
                       href: affiliatesIndex(),
                       icon: Handshake,
+                  },
+                  {
+                      title: 'Affiliate IP Whitelist',
+                      href: affiliateWhitelistedIpsIndex(),
+                      icon: Lock,
                   },
                   {
                       title: 'Advertisers',
