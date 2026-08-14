@@ -26,6 +26,10 @@ type MultiSelectProps = {
     className?: string;
     /** When provided, the trigger renders as an icon-only button instead of placeholder text. */
     icon?: React.ReactNode;
+    /** When provided (and `icon` isn't), renders a leading icon alongside the placeholder text. */
+    leadingIcon?: React.ReactNode;
+    /** Adds a "Select all" / "Clear all" row above the option list. */
+    withSelectAll?: boolean;
 };
 
 export function MultiSelect({
@@ -35,6 +39,8 @@ export function MultiSelect({
     placeholder,
     className,
     icon,
+    leadingIcon,
+    withSelectAll,
 }: MultiSelectProps) {
     const toggle = (value: string) => {
         onChange(
@@ -43,6 +49,8 @@ export function MultiSelect({
                 : [...selected, value],
         );
     };
+    const allSelected =
+        options.length > 0 && selected.length === options.length;
 
     return (
         <Popover>
@@ -66,10 +74,13 @@ export function MultiSelect({
                             className,
                         )}
                     >
-                        <span className="truncate">
-                            {selected.length > 0
-                                ? `${placeholder} (${selected.length})`
-                                : placeholder}
+                        <span className="flex min-w-0 items-center gap-2">
+                            {leadingIcon}
+                            <span className="truncate">
+                                {selected.length > 0
+                                    ? `${placeholder} (${selected.length})`
+                                    : placeholder}
+                            </span>
                         </span>
                         <ChevronsUpDown className="opacity-50" />
                     </Button>
@@ -80,6 +91,30 @@ export function MultiSelect({
                     <CommandInput
                         placeholder={`Search ${placeholder.toLowerCase()}…`}
                     />
+                    {withSelectAll && (
+                        <div className="flex items-center justify-between border-b px-2 py-1.5">
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    onChange(
+                                        options.map((option) => option.value),
+                                    )
+                                }
+                                disabled={allSelected}
+                                className="text-xs text-muted-foreground hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50"
+                            >
+                                Select all
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => onChange([])}
+                                disabled={selected.length === 0}
+                                className="text-xs text-muted-foreground hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50"
+                            >
+                                Clear all
+                            </button>
+                        </div>
+                    )}
                     <CommandList>
                         <CommandEmpty>No results.</CommandEmpty>
                         <CommandGroup>

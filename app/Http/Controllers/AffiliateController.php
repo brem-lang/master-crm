@@ -82,6 +82,9 @@ class AffiliateController extends Controller
      */
     public function whitelistedIps(Request $request, ChildCrmDirectoryClient $client): Response
     {
+        // Feature hidden: not linked from the sidebar, and disabled here as well.
+        abort(404);
+
         $user = $request->user();
 
         $companyScoped = $user->company_id && $user->can('view-company-customers');
