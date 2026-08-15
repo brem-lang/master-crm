@@ -1,6 +1,5 @@
 import { usePage } from '@inertiajs/react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
-import { GlobalSearch } from '@/components/global-search';
 import { NotificationsBell } from '@/components/notifications-bell';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -22,7 +21,6 @@ export function AppSidebarHeader({
             </div>
 
             <div className="flex items-center gap-2">
-                {isParentAdmin && <GlobalSearch />}
                 {isParentAdmin && <NotificationsBell />}
                 <ThemeToggle />
             </div>
