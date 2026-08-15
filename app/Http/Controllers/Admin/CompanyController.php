@@ -69,9 +69,12 @@ class CompanyController extends Controller
     {
         $this->authorize('create', Company::class);
 
+        $validated = $request->validated();
+
         $company = Company::create([
-            ...$request->validated(),
-            'slug' => Company::generateUniqueSlug($request->validated('name')),
+            ...$validated,
+            ...Company::deriveEndpointUrls($validated['api_url']),
+            'slug' => Company::generateUniqueSlug($validated['name']),
             'is_active' => $request->boolean('is_active'),
         ]);
 

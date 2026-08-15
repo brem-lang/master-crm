@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Http\Controllers\Admin\CompanyController;
 use App\Models\Company;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -14,6 +15,11 @@ class CompanyStoreRequest extends FormRequest
     }
 
     /**
+     * The other 14 child-CRM endpoint URLs are no longer collected here —
+     * they're derived from `api_url` in {@see CompanyController::store()}
+     * via {@see Company::deriveEndpointUrls()}. They remain individually
+     * editable later through {@see CompanyUpdateRequest}.
+     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
@@ -23,21 +29,6 @@ class CompanyStoreRequest extends FormRequest
             'website' => ['nullable', 'string', 'max:255', 'url'],
             'api_url' => ['required', 'string', 'max:255', 'url'],
             'api_key' => ['required', 'string', 'max:255', 'unique:'.Company::class.',api_key'],
-            'leads_count_url' => ['nullable', 'string', 'max:255', 'url'],
-            'affiliates_url' => ['nullable', 'string', 'max:255', 'url'],
-            'advertisers_url' => ['nullable', 'string', 'max:255', 'url'],
-            'affiliate_count_api_url' => ['nullable', 'string', 'max:255', 'url'],
-            'advertiser_count_api_url' => ['nullable', 'string', 'max:255', 'url'],
-            'send_test_lead_url' => ['nullable', 'string', 'max:255', 'url'],
-            'release_ftd_url' => ['nullable', 'string', 'max:255', 'url'],
-            'send_lead_url' => ['nullable', 'string', 'max:255', 'url'],
-            'update_affiliate_status_url' => ['nullable', 'string', 'max:255', 'url'],
-            'resend_lead_url' => ['nullable', 'string', 'max:255', 'url'],
-            'update_distribution_rule_url' => ['nullable', 'string', 'max:255', 'url'],
-            'update_advertiser_url' => ['nullable', 'string', 'max:255', 'url'],
-            'update_affiliate_url' => ['nullable', 'string', 'max:255', 'url'],
-            'get_affiliate_whitelisted_ips_url' => ['nullable', 'string', 'max:255', 'url'],
-            'distribution_rules_url' => ['nullable', 'string', 'max:255', 'url'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

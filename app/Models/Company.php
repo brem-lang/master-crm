@@ -107,6 +107,48 @@ class Company extends Model
     }
 
     /**
+     * The endpoint slug each auto-derived URL column appends to the
+     * company's `api_url` on creation — mirrors the naming already implied
+     * by this child CRM API convention (see the create-company form's own
+     * historical placeholders). Only used at creation time; once set, these
+     * columns are ordinary editable fields and are never silently
+     * recomputed just because `api_url` later changes.
+     *
+     * @var array<string, string>
+     */
+    private const ENDPOINT_SLUGS = [
+        'leads_count_url' => 'get-leads-count',
+        'affiliates_url' => 'get-all-affiliates',
+        'advertisers_url' => 'get-all-advertisers',
+        'affiliate_count_api_url' => 'get-affiliate-count',
+        'advertiser_count_api_url' => 'get-advertiser-count',
+        'send_test_lead_url' => 'send-test-lead',
+        'release_ftd_url' => 'release-ftd',
+        'send_lead_url' => 'send-lead',
+        'update_affiliate_status_url' => 'update-affiliate-status',
+        'resend_lead_url' => 'resend-lead',
+        'update_distribution_rule_url' => 'update-distribution-rule',
+        'update_advertiser_url' => 'update-advertiser',
+        'update_affiliate_url' => 'update-affiliate',
+        'get_affiliate_whitelisted_ips_url' => 'get-affiliate-whitelisted-ips',
+        'distribution_rules_url' => 'get-all-distribution-rules',
+    ];
+
+    /**
+     * Every other endpoint URL, derived from the single API base URL an
+     * admin now enters on creation — one map to keep in sync instead of 14
+     * hand-typed fields prone to typos/inconsistency between companies.
+     *
+     * @return array<string, string>
+     */
+    public static function deriveEndpointUrls(string $apiUrl): array
+    {
+        $base = rtrim($apiUrl, '/');
+
+        return array_map(fn (string $slug) => "{$base}/{$slug}", self::ENDPOINT_SLUGS);
+    }
+
+    /**
      * Derive a unique slug from a company name, appending -2, -3, ... on collision.
      */
     public static function generateUniqueSlug(string $name): string
