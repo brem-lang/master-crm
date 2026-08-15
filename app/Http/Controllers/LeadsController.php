@@ -663,6 +663,55 @@ class LeadsController extends Controller
         return back();
     }
 
+    /**
+     * Undoes a soft-delete from the main Leads page. The lead is looked up
+     * with `withTrashed()` since route model binding won't resolve a
+     * trashed row on its own.
+     */
+    public function restore(Request $request, int $lead): RedirectResponse
+    {
+        $user = $request->user();
+        $lead = Lead::withTrashed()->findOrFail($lead);
+
+        $ownsCompany = $user->company_id && $user->company_id === $lead->company_id;
+
+        abort_unless($user->can('restore-leads') && ($ownsCompany || $user->can('view-all-customers')), 403);
+
+        AuditLog::record('lead.restored', $lead);
+
+        $lead->restore();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Lead restored.')]);
+
+        return back();
+    }
+
+    public function bulkRestore(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->can('restore-leads'), 403);
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer', 'exists:leads,id'],
+        ]);
+
+        $restored = Lead::withTrashed()
+            ->whereIn('id', $validated['ids'])
+            ->get()
+            ->filter(fn (Lead $lead) => $user->company_id === $lead->company_id || $user->can('view-all-customers'))
+            ->each(function (Lead $lead) {
+                AuditLog::record('lead.restored', $lead);
+                $lead->restore();
+            })
+            ->count();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => trans_choice('{0} No leads restored.|{1} :count lead restored.|[2,*] :count leads restored.', $restored, ['count' => $restored])]);
+
+        return back();
+    }
+
     public function destroyRejected(Request $request, Lead $lead): RedirectResponse
     {
         $user = $request->user();
@@ -703,6 +752,58 @@ class LeadsController extends Controller
             ->count();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => trans_choice('{0} No leads deleted.|{1} :count lead deleted.|[2,*] :count leads deleted.', $deleted, ['count' => $deleted])]);
+
+        return back();
+    }
+
+    /**
+     * Undoes a soft-delete from the Rejected Leads page. Same shape as
+     * {@see restore()}, additionally re-asserting `status === 'rejected'` so
+     * this endpoint can't be used to restore a lead that only ever belonged
+     * on the main Leads page.
+     */
+    public function restoreRejected(Request $request, int $lead): RedirectResponse
+    {
+        $user = $request->user();
+        $lead = Lead::withTrashed()->findOrFail($lead);
+
+        $ownsCompany = $user->company_id && $user->company_id === $lead->company_id;
+
+        abort_unless($user->can('restore-rejected-leads') && ($ownsCompany || $user->can('view-all-customers')), 403);
+        abort_unless($lead->status === 'rejected', 422);
+
+        AuditLog::record('lead.restored', $lead);
+
+        $lead->restore();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Lead restored.')]);
+
+        return back();
+    }
+
+    public function bulkRestoreRejected(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->can('restore-rejected-leads'), 403);
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer', 'exists:leads,id'],
+        ]);
+
+        $restored = Lead::withTrashed()
+            ->whereIn('id', $validated['ids'])
+            ->where('status', 'rejected')
+            ->get()
+            ->filter(fn (Lead $lead) => $user->company_id === $lead->company_id || $user->can('view-all-customers'))
+            ->each(function (Lead $lead) {
+                AuditLog::record('lead.restored', $lead);
+                $lead->restore();
+            })
+            ->count();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => trans_choice('{0} No leads restored.|{1} :count lead restored.|[2,*] :count leads restored.', $restored, ['count' => $restored])]);
 
         return back();
     }
@@ -935,10 +1036,11 @@ class LeadsController extends Controller
     private function leadsMetrics(Request $request, ?int $companyId, bool $rejectedOnly = false): array
     {
         $viewLeadId = $request->integer('view_lead') ?: null;
+        $trashed = $request->boolean('trashed');
 
         [$start, $end, $rangeMeta] = $this->resolveRange($request, default: 'all');
 
-        $scoped = fn () => $this->baseLeadsQuery($companyId, $rejectedOnly, $start, $end);
+        $scoped = fn () => $this->baseLeadsQuery($companyId, $rejectedOnly, $start, $end, $trashed);
 
         $stats = $scoped()
             ->selectRaw('
@@ -991,6 +1093,7 @@ class LeadsController extends Controller
                 'range' => $rangeMeta['range'],
                 'from' => $rangeMeta['from'],
                 'to' => $rangeMeta['to'],
+                'trashed' => $trashed,
             ],
         ];
     }
@@ -1000,10 +1103,17 @@ class LeadsController extends Controller
      * + date range. Search/status/country/advertiser/affiliate/assigned-to are
      * layered on top by `applyLeadFilters()` — kept separate so callers (e.g. the
      * `filterOptions` dropdown lists) can query the unfiltered baseline.
+     *
+     * `$trashed` swaps the default "active rows only" scope for
+     * "soft-deleted rows only" (the "Show deleted" toggle on the Leads and
+     * Rejected Leads pages) — it's exclusive rather than additive, since a
+     * mixed active+deleted list has no useful bulk action (delete vs.
+     * restore) to offer across the whole selection.
      */
-    private function baseLeadsQuery(?int $companyId, bool $rejectedOnly, ?CarbonInterface $start, ?CarbonInterface $end): Builder
+    private function baseLeadsQuery(?int $companyId, bool $rejectedOnly, ?CarbonInterface $start, ?CarbonInterface $end, bool $trashed = false): Builder
     {
         return Lead::query()
+            ->when($trashed, fn ($query) => $query->onlyTrashed())
             ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
             ->when(
                 $rejectedOnly,

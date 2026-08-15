@@ -1,5 +1,13 @@
 import { Form, Head, router, usePage } from '@inertiajs/react';
-import { Check, Copy, Eye, MoreHorizontal, Send, Trash2 } from 'lucide-react';
+import {
+    Check,
+    Copy,
+    Eye,
+    MoreHorizontal,
+    RotateCcw,
+    Send,
+    Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import LeadsController from '@/actions/App/Http/Controllers/LeadsController';
 import { BulkDeleteBar } from '@/components/bulk-delete-bar';
@@ -120,6 +128,7 @@ type PageProps = {
         range: string;
         from: string | null;
         to: string | null;
+        trashed: boolean;
     };
 };
 
@@ -140,7 +149,13 @@ export default function RejectedLeadsIndex() {
     const canDeleteRejectedLeads = auth.permissions?.includes(
         'delete-rejected-leads',
     );
+    const canRestoreRejectedLeads = auth.permissions?.includes(
+        'restore-rejected-leads',
+    );
     const canResendLeads = auth.permissions?.includes('resend-leads');
+    const showingDeleted = filters.trashed;
+    const showSelectionColumn =
+        canResendLeads || canDeleteRejectedLeads || canRestoreRejectedLeads;
     const selection = useRowSelection(leads.data, leads.current_page);
 
     const applyFilters = (next: Partial<typeof filters>) => {
@@ -333,6 +348,7 @@ export default function RejectedLeadsIndex() {
                                         </SelectContent>
                                     </Select>
                                 )}
+
                             </div>
 
                             <CompactPagination
@@ -348,64 +364,106 @@ export default function RejectedLeadsIndex() {
                                     placeholder="Search ID, email, phone, IP…"
                                     className="max-w-sm"
                                 />
+
+                                {(canDeleteRejectedLeads ||
+                                    canRestoreRejectedLeads) && (
+                                    <label className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
+                                        <Checkbox
+                                            checked={showingDeleted}
+                                            onCheckedChange={(checked) =>
+                                                applyFilters({
+                                                    trashed: checked === true,
+                                                })
+                                            }
+                                        />
+                                        Show deleted
+                                    </label>
+                                )}
                             </CompactPagination>
                         </CardContent>
                     </Card>
                 </div>
 
-                {(canResendLeads || canDeleteRejectedLeads) &&
-                    selection.selectedIds.length > 0 && (
-                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/50 px-4 py-2">
-                            <span className="text-sm text-muted-foreground">
-                                {selection.selectedIds.length} selected
-                            </span>
+                {showingDeleted
+                    ? canRestoreRejectedLeads &&
+                      selection.selectedIds.length > 0 && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/50 px-4 py-2">
+                              <span className="text-sm text-muted-foreground">
+                                  {selection.selectedIds.length} selected
+                              </span>
 
-                            <div className="flex flex-wrap items-center gap-2">
-                                {canResendLeads && (
-                                    <BulkResendRejectedDialog
-                                        bare
-                                        count={selection.selectedIds.length}
-                                        selectedIds={selection.selectedIds}
-                                        onDone={() =>
-                                            selection.setSelectedIds([])
-                                        }
-                                    />
-                                )}
+                              <Button
+                                  size="sm"
+                                  onClick={() =>
+                                      router.patch(
+                                          LeadsController.bulkRestoreRejected()
+                                              .url,
+                                          { ids: selection.selectedIds },
+                                          {
+                                              preserveScroll: true,
+                                              onSuccess: () =>
+                                                  selection.setSelectedIds([]),
+                                          },
+                                      )
+                                  }
+                              >
+                                  <RotateCcw />
+                                  Restore selected
+                              </Button>
+                          </div>
+                      )
+                    : (canResendLeads || canDeleteRejectedLeads) &&
+                      selection.selectedIds.length > 0 && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/50 px-4 py-2">
+                              <span className="text-sm text-muted-foreground">
+                                  {selection.selectedIds.length} selected
+                              </span>
 
-                                {canDeleteRejectedLeads && (
-                                    <BulkDeleteBar
-                                        bare
-                                        count={selection.selectedIds.length}
-                                        description="This will permanently delete the selected rejected leads. This action cannot be undone."
-                                        onConfirm={(onFinish) => {
-                                            router.delete(
-                                                LeadsController.bulkDestroyRejected()
-                                                    .url,
-                                                {
-                                                    data: {
-                                                        ids: selection.selectedIds,
-                                                    },
-                                                    preserveScroll: true,
-                                                    onSuccess: () =>
-                                                        selection.setSelectedIds(
-                                                            [],
-                                                        ),
-                                                    onFinish,
-                                                },
-                                            );
-                                        }}
-                                    />
-                                )}
-                            </div>
-                        </div>
-                    )}
+                              <div className="flex flex-wrap items-center gap-2">
+                                  {canResendLeads && (
+                                      <BulkResendRejectedDialog
+                                          bare
+                                          count={selection.selectedIds.length}
+                                          selectedIds={selection.selectedIds}
+                                          onDone={() =>
+                                              selection.setSelectedIds([])
+                                          }
+                                      />
+                                  )}
+
+                                  {canDeleteRejectedLeads && (
+                                      <BulkDeleteBar
+                                          bare
+                                          count={selection.selectedIds.length}
+                                          description="This will delete the selected rejected leads. They can be restored later from the 'Show deleted' view."
+                                          onConfirm={(onFinish) => {
+                                              router.delete(
+                                                  LeadsController.bulkDestroyRejected()
+                                                      .url,
+                                                  {
+                                                      data: {
+                                                          ids: selection.selectedIds,
+                                                      },
+                                                      preserveScroll: true,
+                                                      onSuccess: () =>
+                                                          selection.setSelectedIds(
+                                                              [],
+                                                          ),
+                                                      onFinish,
+                                                  },
+                                              );
+                                          }}
+                                      />
+                                  )}
+                              </div>
+                          </div>
+                      )}
 
                 <div className="rounded-md border p-2">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                {(canResendLeads ||
-                                    canDeleteRejectedLeads) && (
+                                {showSelectionColumn && (
                                     <TableHead className="w-px">
                                         <Checkbox
                                             checked={
@@ -467,10 +525,7 @@ export default function RejectedLeadsIndex() {
                                 <TableRow>
                                     <TableCell
                                         colSpan={
-                                            (canResendLeads ||
-                                            canDeleteRejectedLeads
-                                                ? 1
-                                                : 0) +
+                                            (showSelectionColumn ? 1 : 0) +
                                             (companies ? 1 : 0) +
                                             (salesReps.length > 0 ? 1 : 0) +
                                             11
@@ -484,14 +539,18 @@ export default function RejectedLeadsIndex() {
                                 leads.data.map((lead) => (
                                     <TableRow
                                         key={lead.id}
+                                        className={
+                                            lead.deleted_at
+                                                ? 'opacity-60'
+                                                : undefined
+                                        }
                                         data-state={
                                             selection.isSelected(lead.id)
                                                 ? 'selected'
                                                 : undefined
                                         }
                                     >
-                                        {(canResendLeads ||
-                                            canDeleteRejectedLeads) && (
+                                        {showSelectionColumn && (
                                             <TableCell>
                                                 <Checkbox
                                                     checked={selection.isSelected(
@@ -535,7 +594,14 @@ export default function RejectedLeadsIndex() {
                                             {lead.country_code ?? '—'}
                                         </TableCell>
                                         <TableCell>
-                                            {lead.sale_status ? (
+                                            {lead.deleted_at ? (
+                                                <Badge
+                                                    variant="outline"
+                                                    className="border-transparent bg-muted text-muted-foreground"
+                                                >
+                                                    Deleted
+                                                </Badge>
+                                            ) : lead.sale_status ? (
                                                 <Badge
                                                     variant="outline"
                                                     className={statusBadgeClass(
@@ -612,84 +678,166 @@ export default function RejectedLeadsIndex() {
                                                         View
                                                     </DropdownMenuItem>
 
-                                                    {canResendLeads && (
-                                                        <DropdownMenuItem
-                                                            onSelect={() =>
-                                                                setResendingLead(
-                                                                    lead,
-                                                                )
-                                                            }
-                                                        >
-                                                            <Send />
-                                                            Resend
-                                                        </DropdownMenuItem>
-                                                    )}
+                                                    {lead.deleted_at ? (
+                                                        canRestoreRejectedLeads && (
+                                                            <Dialog>
+                                                                <DialogTrigger
+                                                                    asChild
+                                                                >
+                                                                    <DropdownMenuItem
+                                                                        onSelect={(
+                                                                            event,
+                                                                        ) =>
+                                                                            event.preventDefault()
+                                                                        }
+                                                                    >
+                                                                        <RotateCcw />
+                                                                        Restore
+                                                                    </DropdownMenuItem>
+                                                                </DialogTrigger>
 
-                                                    {canDeleteRejectedLeads && (
-                                                        <Dialog>
-                                                            <DialogTrigger
-                                                                asChild
-                                                            >
+                                                                <DialogContent>
+                                                                    <DialogTitle>
+                                                                        Restore
+                                                                        this
+                                                                        lead?
+                                                                    </DialogTitle>
+                                                                    <DialogDescription>
+                                                                        This
+                                                                        will
+                                                                        bring
+                                                                        the
+                                                                        lead
+                                                                        back to
+                                                                        the
+                                                                        rejected
+                                                                        leads
+                                                                        list.
+                                                                    </DialogDescription>
+
+                                                                    <DialogFooter className="gap-2">
+                                                                        <DialogClose
+                                                                            asChild
+                                                                        >
+                                                                            <Button variant="secondary">
+                                                                                Cancel
+                                                                            </Button>
+                                                                        </DialogClose>
+
+                                                                        <Form
+                                                                            {...LeadsController.restoreRejected.form(
+                                                                                lead.id,
+                                                                            )}
+                                                                        >
+                                                                            {({
+                                                                                processing,
+                                                                            }) => (
+                                                                                <Button
+                                                                                    disabled={
+                                                                                        processing
+                                                                                    }
+                                                                                    type="submit"
+                                                                                >
+                                                                                    <RotateCcw />
+                                                                                    Restore
+                                                                                </Button>
+                                                                            )}
+                                                                        </Form>
+                                                                    </DialogFooter>
+                                                                </DialogContent>
+                                                            </Dialog>
+                                                        )
+                                                    ) : (
+                                                        <>
+                                                            {canResendLeads && (
                                                                 <DropdownMenuItem
-                                                                    variant="destructive"
-                                                                    onSelect={(
-                                                                        event,
-                                                                    ) =>
-                                                                        event.preventDefault()
+                                                                    onSelect={() =>
+                                                                        setResendingLead(
+                                                                            lead,
+                                                                        )
                                                                     }
                                                                 >
-                                                                    <Trash2 />
-                                                                    Delete
+                                                                    <Send />
+                                                                    Resend
                                                                 </DropdownMenuItem>
-                                                            </DialogTrigger>
+                                                            )}
 
-                                                            <DialogContent>
-                                                                <DialogTitle>
-                                                                    Delete this
-                                                                    lead?
-                                                                </DialogTitle>
-                                                                <DialogDescription>
-                                                                    This will
-                                                                    permanently
-                                                                    delete this
-                                                                    lead. This
-                                                                    action
-                                                                    cannot be
-                                                                    undone.
-                                                                </DialogDescription>
-
-                                                                <DialogFooter className="gap-2">
-                                                                    <DialogClose
+                                                            {canDeleteRejectedLeads && (
+                                                                <Dialog>
+                                                                    <DialogTrigger
                                                                         asChild
                                                                     >
-                                                                        <Button variant="secondary">
-                                                                            Cancel
-                                                                        </Button>
-                                                                    </DialogClose>
+                                                                        <DropdownMenuItem
+                                                                            variant="destructive"
+                                                                            onSelect={(
+                                                                                event,
+                                                                            ) =>
+                                                                                event.preventDefault()
+                                                                            }
+                                                                        >
+                                                                            <Trash2 />
+                                                                            Delete
+                                                                        </DropdownMenuItem>
+                                                                    </DialogTrigger>
 
-                                                                    <Form
-                                                                        {...LeadsController.destroyRejected.form(
-                                                                            lead.id,
-                                                                        )}
-                                                                    >
-                                                                        {({
-                                                                            processing,
-                                                                        }) => (
-                                                                            <Button
-                                                                                variant="destructive"
-                                                                                disabled={
-                                                                                    processing
-                                                                                }
-                                                                                type="submit"
+                                                                    <DialogContent>
+                                                                        <DialogTitle>
+                                                                            Delete
+                                                                            this
+                                                                            lead?
+                                                                        </DialogTitle>
+                                                                        <DialogDescription>
+                                                                            This
+                                                                            will
+                                                                            delete
+                                                                            this
+                                                                            lead.
+                                                                            It
+                                                                            can
+                                                                            be
+                                                                            restored
+                                                                            later
+                                                                            from
+                                                                            the
+                                                                            &quot;Show
+                                                                            deleted&quot;
+                                                                            view.
+                                                                        </DialogDescription>
+
+                                                                        <DialogFooter className="gap-2">
+                                                                            <DialogClose
+                                                                                asChild
                                                                             >
-                                                                                <Trash2 />
-                                                                                Delete
-                                                                            </Button>
-                                                                        )}
-                                                                    </Form>
-                                                                </DialogFooter>
-                                                            </DialogContent>
-                                                        </Dialog>
+                                                                                <Button variant="secondary">
+                                                                                    Cancel
+                                                                                </Button>
+                                                                            </DialogClose>
+
+                                                                            <Form
+                                                                                {...LeadsController.destroyRejected.form(
+                                                                                    lead.id,
+                                                                                )}
+                                                                            >
+                                                                                {({
+                                                                                    processing,
+                                                                                }) => (
+                                                                                    <Button
+                                                                                        variant="destructive"
+                                                                                        disabled={
+                                                                                            processing
+                                                                                        }
+                                                                                        type="submit"
+                                                                                    >
+                                                                                        <Trash2 />
+                                                                                        Delete
+                                                                                    </Button>
+                                                                                )}
+                                                                            </Form>
+                                                                        </DialogFooter>
+                                                                    </DialogContent>
+                                                                </Dialog>
+                                                            )}
+                                                        </>
                                                     )}
                                                 </DropdownMenuContent>
                                             </DropdownMenu>

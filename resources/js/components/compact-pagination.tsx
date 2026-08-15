@@ -17,7 +17,10 @@ const PER_PAGE_OPTIONS = ['10', '20', '25', '50', '100'];
 type Props = {
     paginator: Paginator<unknown>;
     /** Current filter query params to preserve when the per-page selection changes. */
-    filters?: Record<string, string | number | string[] | undefined | null>;
+    filters?: Record<
+        string,
+        string | number | boolean | string[] | undefined | null
+    >;
     /** Rendered between the per-page control and the Previous/Next controls — e.g. a search box. */
     children?: ReactNode;
 };

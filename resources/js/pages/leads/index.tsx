@@ -5,6 +5,7 @@ import {
     Download,
     Eye,
     MoreHorizontal,
+    RotateCcw,
     Send,
     Trash2,
 } from 'lucide-react';
@@ -290,6 +291,7 @@ type PageProps = {
         range: string;
         from: string | null;
         to: string | null;
+        trashed: boolean;
     };
 };
 
@@ -314,7 +316,11 @@ export default function LeadsIndex() {
     const [order, setOrder] = useState(sanitizeColumnOrder(columnOrder));
     const canAssignLeads = auth.permissions?.includes('assign-leads');
     const canDeleteLeads = auth.permissions?.includes('delete-leads');
+    const canRestoreLeads = auth.permissions?.includes('restore-leads');
     const canResendLeads = auth.permissions?.includes('resend-leads');
+    const showingDeleted = filters.trashed;
+    const showSelectionColumn =
+        canAssignLeads || canDeleteLeads || canRestoreLeads;
     const selection = useRowSelection(leads.data, leads.current_page);
 
     const columnsByKey = new Map(
@@ -448,7 +454,14 @@ export default function LeadsIndex() {
             case 'offer_name':
                 return lead.offer_name ?? '—';
             case 'status':
-                return lead.status ? (
+                return lead.deleted_at ? (
+                    <Badge
+                        variant="outline"
+                        className="border-transparent bg-muted text-muted-foreground"
+                    >
+                        Deleted
+                    </Badge>
+                ) : lead.status ? (
                     <Badge
                         variant="outline"
                         className={statusBadgeClass(lead.status)}
@@ -758,88 +771,132 @@ export default function LeadsIndex() {
                                     placeholder="Search ID, email, phone, IP…"
                                     className="max-w-sm"
                                 />
+
+                                {(canDeleteLeads || canRestoreLeads) && (
+                                    <label className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
+                                        <Checkbox
+                                            checked={showingDeleted}
+                                            onCheckedChange={(checked) =>
+                                                applyFilters({
+                                                    trashed: checked === true,
+                                                })
+                                            }
+                                        />
+                                        Show deleted
+                                    </label>
+                                )}
                             </CompactPagination>
                         </CardContent>
                     </Card>
                 </div>
 
-                {(canAssignLeads || canDeleteLeads || canResendLeads) &&
-                    selection.selectedIds.length > 0 && (
-                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/50 px-4 py-2">
-                            <span className="text-sm text-muted-foreground">
-                                {selection.selectedIds.length} selected
-                            </span>
+                {showingDeleted
+                    ? canRestoreLeads &&
+                      selection.selectedIds.length > 0 && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/50 px-4 py-2">
+                              <span className="text-sm text-muted-foreground">
+                                  {selection.selectedIds.length} selected
+                              </span>
 
-                            <div className="flex flex-wrap items-center gap-2">
-                                {canAssignLeads && (
-                                    <BulkAssignBar
-                                        bare
-                                        count={selection.selectedIds.length}
-                                        reps={salesReps}
-                                        onAssign={(assignedTo, onFinish) => {
-                                            router.patch(
-                                                bulkAssign().url,
-                                                {
-                                                    ids: selection.selectedIds,
-                                                    assigned_to: assignedTo,
-                                                },
-                                                {
-                                                    preserveScroll: true,
-                                                    onSuccess: () =>
-                                                        selection.setSelectedIds(
-                                                            [],
-                                                        ),
-                                                    onFinish,
-                                                },
-                                            );
-                                        }}
-                                    />
-                                )}
+                              <Button
+                                  size="sm"
+                                  onClick={() =>
+                                      router.patch(
+                                          LeadsController.bulkRestore().url,
+                                          { ids: selection.selectedIds },
+                                          {
+                                              preserveScroll: true,
+                                              onSuccess: () =>
+                                                  selection.setSelectedIds([]),
+                                          },
+                                      )
+                                  }
+                              >
+                                  <RotateCcw />
+                                  Restore selected
+                              </Button>
+                          </div>
+                      )
+                    : (canAssignLeads || canDeleteLeads || canResendLeads) &&
+                      selection.selectedIds.length > 0 && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/50 px-4 py-2">
+                              <span className="text-sm text-muted-foreground">
+                                  {selection.selectedIds.length} selected
+                              </span>
 
-                                {canResendLeads && (
-                                    <BulkResendDialog
-                                        bare
-                                        count={selection.selectedIds.length}
-                                        selectedIds={selection.selectedIds}
-                                        onDone={() =>
-                                            selection.setSelectedIds([])
-                                        }
-                                    />
-                                )}
+                              <div className="flex flex-wrap items-center gap-2">
+                                  {canAssignLeads && (
+                                      <BulkAssignBar
+                                          bare
+                                          count={selection.selectedIds.length}
+                                          reps={salesReps}
+                                          onAssign={(
+                                              assignedTo,
+                                              onFinish,
+                                          ) => {
+                                              router.patch(
+                                                  bulkAssign().url,
+                                                  {
+                                                      ids: selection.selectedIds,
+                                                      assigned_to: assignedTo,
+                                                  },
+                                                  {
+                                                      preserveScroll: true,
+                                                      onSuccess: () =>
+                                                          selection.setSelectedIds(
+                                                              [],
+                                                          ),
+                                                      onFinish,
+                                                  },
+                                              );
+                                          }}
+                                      />
+                                  )}
 
-                                {canDeleteLeads && (
-                                    <BulkDeleteBar
-                                        bare
-                                        count={selection.selectedIds.length}
-                                        description="This will permanently delete the selected leads. This action cannot be undone."
-                                        onConfirm={(onFinish) => {
-                                            router.delete(
-                                                LeadsController.bulkDestroy()
-                                                    .url,
-                                                {
-                                                    data: {
-                                                        ids: selection.selectedIds,
-                                                    },
-                                                    preserveScroll: true,
-                                                    onSuccess: () =>
-                                                        selection.setSelectedIds(
-                                                            [],
-                                                        ),
-                                                    onFinish,
-                                                },
-                                            );
-                                        }}
-                                    />
-                                )}
-                            </div>
-                        </div>
-                    )}
+                                  {canResendLeads && (
+                                      <BulkResendDialog
+                                          bare
+                                          count={selection.selectedIds.length}
+                                          selectedIds={selection.selectedIds}
+                                          onDone={() =>
+                                              selection.setSelectedIds([])
+                                          }
+                                      />
+                                  )}
+
+                                  {canDeleteLeads && (
+                                      <BulkDeleteBar
+                                          bare
+                                          count={selection.selectedIds.length}
+                                          description="This will delete the selected leads. They can be restored later from the 'Show deleted' view."
+                                          onConfirm={(onFinish) => {
+                                              router.delete(
+                                                  LeadsController.bulkDestroy()
+                                                      .url,
+                                                  {
+                                                      data: {
+                                                          ids: selection.selectedIds,
+                                                      },
+                                                      preserveScroll: true,
+                                                      onSuccess: () =>
+                                                          selection.setSelectedIds(
+                                                              [],
+                                                          ),
+                                                      onFinish,
+                                                  },
+                                              );
+                                          }}
+                                      />
+                                  )}
+                              </div>
+                          </div>
+                      )}
 
                 <div className="rounded-md border p-2">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                {(canAssignLeads || canDeleteLeads) && (
+                                {showSelectionColumn && (
                                     <TableHead className="w-px">
                                         <Checkbox
                                             checked={
@@ -876,9 +933,7 @@ export default function LeadsIndex() {
                                         colSpan={
                                             visibleColumns.length +
                                             1 +
-                                            (canAssignLeads || canDeleteLeads
-                                                ? 1
-                                                : 0)
+                                            (showSelectionColumn ? 1 : 0)
                                         }
                                         className="h-24 text-center text-muted-foreground"
                                     >
@@ -889,13 +944,18 @@ export default function LeadsIndex() {
                             {leads.data.map((lead) => (
                                 <TableRow
                                     key={lead.id}
+                                    className={
+                                        lead.deleted_at
+                                            ? 'opacity-60'
+                                            : undefined
+                                    }
                                     data-state={
                                         selection.isSelected(lead.id)
                                             ? 'selected'
                                             : undefined
                                     }
                                 >
-                                    {(canAssignLeads || canDeleteLeads) && (
+                                    {showSelectionColumn && (
                                         <TableCell>
                                             <Checkbox
                                                 checked={selection.isSelected(
@@ -943,81 +1003,160 @@ export default function LeadsIndex() {
                                                     View
                                                 </DropdownMenuItem>
 
-                                                {canResendLeads && (
-                                                    <DropdownMenuItem
-                                                        onSelect={() =>
-                                                            setResendingLead(
-                                                                lead,
-                                                            )
-                                                        }
-                                                    >
-                                                        <Send />
-                                                        Resend
-                                                    </DropdownMenuItem>
-                                                )}
+                                                {lead.deleted_at ? (
+                                                    canRestoreLeads && (
+                                                        <Dialog>
+                                                            <DialogTrigger
+                                                                asChild
+                                                            >
+                                                                <DropdownMenuItem
+                                                                    onSelect={(
+                                                                        event,
+                                                                    ) =>
+                                                                        event.preventDefault()
+                                                                    }
+                                                                >
+                                                                    <RotateCcw />
+                                                                    Restore
+                                                                </DropdownMenuItem>
+                                                            </DialogTrigger>
 
-                                                {canDeleteLeads && (
-                                                    <Dialog>
-                                                        <DialogTrigger asChild>
+                                                            <DialogContent>
+                                                                <DialogTitle>
+                                                                    Restore
+                                                                    this lead?
+                                                                </DialogTitle>
+                                                                <DialogDescription>
+                                                                    This will
+                                                                    bring the
+                                                                    lead back
+                                                                    to the
+                                                                    active
+                                                                    leads list.
+                                                                </DialogDescription>
+
+                                                                <DialogFooter className="gap-2">
+                                                                    <DialogClose
+                                                                        asChild
+                                                                    >
+                                                                        <Button variant="secondary">
+                                                                            Cancel
+                                                                        </Button>
+                                                                    </DialogClose>
+
+                                                                    <Form
+                                                                        {...LeadsController.restore.form(
+                                                                            lead.id,
+                                                                        )}
+                                                                    >
+                                                                        {({
+                                                                            processing,
+                                                                        }) => (
+                                                                            <Button
+                                                                                disabled={
+                                                                                    processing
+                                                                                }
+                                                                                type="submit"
+                                                                            >
+                                                                                <RotateCcw />
+                                                                                Restore
+                                                                            </Button>
+                                                                        )}
+                                                                    </Form>
+                                                                </DialogFooter>
+                                                            </DialogContent>
+                                                        </Dialog>
+                                                    )
+                                                ) : (
+                                                    <>
+                                                        {canResendLeads && (
                                                             <DropdownMenuItem
-                                                                variant="destructive"
-                                                                onSelect={(
-                                                                    event,
-                                                                ) =>
-                                                                    event.preventDefault()
+                                                                onSelect={() =>
+                                                                    setResendingLead(
+                                                                        lead,
+                                                                    )
                                                                 }
                                                             >
-                                                                <Trash2 />
-                                                                Delete
+                                                                <Send />
+                                                                Resend
                                                             </DropdownMenuItem>
-                                                        </DialogTrigger>
+                                                        )}
 
-                                                        <DialogContent>
-                                                            <DialogTitle>
-                                                                Delete this
-                                                                lead?
-                                                            </DialogTitle>
-                                                            <DialogDescription>
-                                                                This will
-                                                                permanently
-                                                                delete this
-                                                                lead. This
-                                                                action cannot be
-                                                                undone.
-                                                            </DialogDescription>
-
-                                                            <DialogFooter className="gap-2">
-                                                                <DialogClose
+                                                        {canDeleteLeads && (
+                                                            <Dialog>
+                                                                <DialogTrigger
                                                                     asChild
                                                                 >
-                                                                    <Button variant="secondary">
-                                                                        Cancel
-                                                                    </Button>
-                                                                </DialogClose>
+                                                                    <DropdownMenuItem
+                                                                        variant="destructive"
+                                                                        onSelect={(
+                                                                            event,
+                                                                        ) =>
+                                                                            event.preventDefault()
+                                                                        }
+                                                                    >
+                                                                        <Trash2 />
+                                                                        Delete
+                                                                    </DropdownMenuItem>
+                                                                </DialogTrigger>
 
-                                                                <Form
-                                                                    {...LeadsController.destroy.form(
-                                                                        lead.id,
-                                                                    )}
-                                                                >
-                                                                    {({
-                                                                        processing,
-                                                                    }) => (
-                                                                        <Button
-                                                                            variant="destructive"
-                                                                            disabled={
-                                                                                processing
-                                                                            }
-                                                                            type="submit"
+                                                                <DialogContent>
+                                                                    <DialogTitle>
+                                                                        Delete
+                                                                        this
+                                                                        lead?
+                                                                    </DialogTitle>
+                                                                    <DialogDescription>
+                                                                        This
+                                                                        will
+                                                                        delete
+                                                                        this
+                                                                        lead.
+                                                                        It can
+                                                                        be
+                                                                        restored
+                                                                        later
+                                                                        from
+                                                                        the
+                                                                        &quot;Show
+                                                                        deleted&quot;
+                                                                        view.
+                                                                    </DialogDescription>
+
+                                                                    <DialogFooter className="gap-2">
+                                                                        <DialogClose
+                                                                            asChild
                                                                         >
-                                                                            <Trash2 />
-                                                                            Delete
-                                                                        </Button>
-                                                                    )}
-                                                                </Form>
-                                                            </DialogFooter>
-                                                        </DialogContent>
-                                                    </Dialog>
+                                                                            <Button variant="secondary">
+                                                                                Cancel
+                                                                            </Button>
+                                                                        </DialogClose>
+
+                                                                        <Form
+                                                                            {...LeadsController.destroy.form(
+                                                                                lead.id,
+                                                                            )}
+                                                                        >
+                                                                            {({
+                                                                                processing,
+                                                                            }) => (
+                                                                                <Button
+                                                                                    variant="destructive"
+                                                                                    disabled={
+                                                                                        processing
+                                                                                    }
+                                                                                    type="submit"
+                                                                                >
+                                                                                    <Trash2 />
+                                                                                    Delete
+                                                                                </Button>
+                                                                            )}
+                                                                        </Form>
+                                                                    </DialogFooter>
+                                                                </DialogContent>
+                                                            </Dialog>
+                                                        )}
+                                                    </>
                                                 )}
                                             </DropdownMenuContent>
                                         </DropdownMenu>

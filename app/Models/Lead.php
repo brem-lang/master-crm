@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
 /**
@@ -32,6 +33,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $synced_to_parent_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  * @property-read string|null $advertiser_name
  * @property-read string|null $sale_status
  * @property-read string|null $live_lead_status
@@ -60,7 +62,7 @@ use Illuminate\Support\Carbon;
 class Lead extends Model
 {
     /** @use HasFactory<LeadFactory> */
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     /**
      * @var list<string>

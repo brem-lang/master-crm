@@ -19,12 +19,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/leads/bulk-assign', [LeadsController::class, 'bulkAssign'])->name('leads.bulk-assign');
     Route::patch('/leads/column-preferences', [LeadsController::class, 'updateColumnPreferences'])->name('leads.column-preferences.update');
     Route::delete('/leads/bulk-destroy', [LeadsController::class, 'bulkDestroy'])->name('leads.bulk-destroy');
+    Route::patch('/leads/bulk-restore', [LeadsController::class, 'bulkRestore'])->name('leads.bulk-restore');
     Route::delete('/leads/rejected/bulk-destroy', [LeadsController::class, 'bulkDestroyRejected'])->name('leads.rejected.bulk-destroy');
+    Route::patch('/leads/rejected/bulk-restore', [LeadsController::class, 'bulkRestoreRejected'])->name('leads.rejected.bulk-restore');
     Route::get('/leads/rejected/bulk-resend-options', [LeadsController::class, 'bulkResendRejectedOptions'])->name('leads.rejected.bulk-resend-options');
     Route::patch('/leads/rejected/bulk-resend', [LeadsController::class, 'bulkResendRejected'])->name('leads.rejected.bulk-resend');
     Route::get('/leads/rejected/{lead}/resend-options', [LeadsController::class, 'rejectedResendOptions'])->name('leads.rejected.resend-options');
     Route::patch('/leads/rejected/{lead}/resend', [LeadsController::class, 'resendRejected'])->name('leads.rejected.resend');
+    Route::patch('/leads/rejected/{lead}/restore', [LeadsController::class, 'restoreRejected'])->name('leads.rejected.restore');
     Route::delete('/leads/rejected/{lead}', [LeadsController::class, 'destroyRejected'])->name('leads.rejected.destroy');
+    Route::patch('/leads/{lead}/restore', [LeadsController::class, 'restore'])->name('leads.restore');
     Route::delete('/leads/{lead}', [LeadsController::class, 'destroy'])->name('leads.destroy');
     Route::get('/leads/leaderboard', [SalesRepLeaderboardController::class, 'index'])->name('leads.leaderboard');
 });
