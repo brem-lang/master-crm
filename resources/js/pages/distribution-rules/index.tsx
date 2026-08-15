@@ -1,6 +1,7 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import { Eye, MoreHorizontal, Pencil } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import DistributionRulesController from '@/actions/App/Http/Controllers/DistributionRulesController';
 import { BulkDistributionRuleEditDialog } from '@/components/bulk-distribution-rule-edit-dialog';
 import { DataPagination } from '@/components/data-pagination';
 import { DistributionRuleEditDialog } from '@/components/distribution-rule-edit-dialog';
@@ -89,6 +90,11 @@ function metaValue(value: unknown): string {
     return String(value);
 }
 
+type CountryLeadCount = {
+    country_code: string;
+    count: number;
+};
+
 function DistributionRuleDetailsDialog({
     rule,
     open,
@@ -98,6 +104,47 @@ function DistributionRuleDetailsDialog({
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }) {
+    const [countryCounts, setCountryCounts] = useState<
+        CountryLeadCount[] | null
+    >(null);
+    const [loadingCounts, setLoadingCounts] = useState(false);
+
+    useEffect(() => {
+        if (!open || !rule) {
+            setCountryCounts(null);
+
+            return;
+        }
+
+        let cancelled = false;
+
+        (async () => {
+            setLoadingCounts(true);
+
+            try {
+                const response = await fetch(
+                    DistributionRulesController.leadsByCountry(rule.id).url,
+                    { headers: { Accept: 'application/json' } },
+                );
+                const body = (await response.json()) as {
+                    counts: CountryLeadCount[];
+                };
+
+                if (!cancelled) {
+                    setCountryCounts(body.counts);
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoadingCounts(false);
+                }
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [open, rule]);
+
     if (!rule) {
         return null;
     }
@@ -142,9 +189,9 @@ function DistributionRuleDetailsDialog({
                 </DialogHeader>
 
                 <div className="max-h-[70vh] space-y-6 overflow-y-auto">
-                    <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+                    <dl className="divide-y rounded-md border text-sm">
                         {rule.company && (
-                            <div>
+                            <div className="flex items-center justify-between gap-4 px-4 py-2.5">
                                 <dt className="text-muted-foreground">
                                     Company
                                 </dt>
@@ -153,16 +200,19 @@ function DistributionRuleDetailsDialog({
                                 </dd>
                             </div>
                         )}
-                        <div>
+                        <div className="flex items-center justify-between gap-4 px-4 py-2.5">
                             <dt className="text-muted-foreground">
                                 External ID
                             </dt>
-                            <dd className="font-medium wrap-break-word">
+                            <dd className="font-mono text-xs font-medium wrap-break-word">
                                 {rule.external_id}
                             </dd>
                         </div>
                         {fields.map(([label, value]) => (
-                            <div key={label}>
+                            <div
+                                key={label}
+                                className="flex items-center justify-between gap-4 px-4 py-2.5"
+                            >
                                 <dt className="text-muted-foreground">
                                     {label}
                                 </dt>
@@ -178,9 +228,12 @@ function DistributionRuleDetailsDialog({
                             <p className="mb-2 text-sm font-medium text-muted-foreground">
                                 Additional details
                             </p>
-                            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+                            <dl className="divide-y rounded-md border text-sm">
                                 {metaEntries.map(([key, value]) => (
-                                    <div key={key}>
+                                    <div
+                                        key={key}
+                                        className="flex items-center justify-between gap-4 px-4 py-2.5"
+                                    >
                                         <dt className="text-muted-foreground">
                                             {metaLabel(key)}
                                         </dt>
@@ -192,6 +245,57 @@ function DistributionRuleDetailsDialog({
                             </dl>
                         </div>
                     )}
+
+                    <div>
+                        <p className="mb-2 text-sm font-medium text-muted-foreground">
+                            Leads by country
+                        </p>
+                        <div className="rounded-md border">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Country</TableHead>
+                                        <TableHead className="text-right">
+                                            Leads
+                                        </TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {loadingCounts ? (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={2}
+                                                className="h-16 text-center text-muted-foreground"
+                                            >
+                                                Loading…
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : !countryCounts ||
+                                      countryCounts.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={2}
+                                                className="h-16 text-center text-muted-foreground"
+                                            >
+                                                No leads recorded yet.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        countryCounts.map((row) => (
+                                            <TableRow key={row.country_code}>
+                                                <TableCell>
+                                                    {row.country_code}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    {row.count}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>

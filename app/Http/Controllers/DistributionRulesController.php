@@ -236,6 +236,52 @@ class DistributionRulesController extends Controller
     }
 
     /**
+     * The per-country breakdown behind the "Leads" count shown in the view
+     * modal — same matching signals as {@see attachLeadsCounts()} (company,
+     * not rejected, affiliate, advertiser+sent), except `country_code` is
+     * never filtered on: it's the dimension being grouped by instead, so a
+     * rule with no country restriction shows where its leads actually came
+     * from rather than a single opaque total.
+     */
+    public function leadsByCountry(Request $request, DistributionRule $distributionRule): JsonResponse
+    {
+        $user = $request->user();
+
+        $ownsCompany = $user->company_id && $user->company_id === $distributionRule->company_id;
+
+        abort_unless($ownsCompany || $user->can('view-all-customers'), 403);
+
+        $leads = Lead::query()
+            ->where('company_id', $distributionRule->company_id)
+            ->where(fn ($query) => $query->where('status', '!=', 'rejected')
+                ->orWhereNull('status'))
+            ->when($distributionRule->affiliate_id, fn ($query) => $query->where('meta->affiliate_id', $distributionRule->affiliate_id))
+            ->get(['country_code', 'meta']);
+
+        $advertiserId = $distributionRule->advertiser_id;
+
+        $counts = $leads
+            ->when($advertiserId !== null, fn ($leads) => $leads->filter(function (Lead $lead) use ($advertiserId) {
+                $distributions = $lead->meta['lead_distributions'] ?? [];
+
+                return collect($distributions)->contains(
+                    fn ($distribution) => ($distribution['status'] ?? null) === 'sent'
+                        && ($distribution['advertiser_id'] ?? null) === $advertiserId,
+                );
+            }))
+            ->groupBy(fn (Lead $lead) => $lead->country_code ?? '—')
+            ->map->count()
+            ->sortDesc();
+
+        return response()->json([
+            'counts' => $counts->map(fn ($count, $countryCode) => [
+                'country_code' => $countryCode,
+                'count' => $count,
+            ])->values(),
+        ]);
+    }
+
+    /**
      * Pushes an edit to the child CRM's `update-distribution-rule` endpoint,
      * then mirrors its response locally so this row stays byte-for-byte
      * consistent with what the child CRM now has. The child API's own
