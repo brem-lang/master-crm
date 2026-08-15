@@ -136,6 +136,19 @@ export function RequestDetailsDialog({
                                 </p>
                             )}
                         </Section>
+
+                        <Section label="Response">
+                            {distribution && 'response' in distribution ? (
+                                <pre className={darkBoxClass('max-h-64')}>
+                                    {formatJsonValue(distribution.response)}
+                                </pre>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">
+                                    No response recorded for this
+                                    distribution.
+                                </p>
+                            )}
+                        </Section>
                     </div>
                 )}
             </DialogContent>
