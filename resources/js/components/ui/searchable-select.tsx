@@ -18,20 +18,25 @@ import { Button } from './button';
 type Option = { value: string; label: string };
 
 type SearchableSelectProps = {
+    id?: string;
     options: Option[];
     value: string | null;
     onChange: (value: string | null) => void;
     placeholder: string;
     allLabel?: string;
+    /** Hide the "All …" clear option, for required (non-filter) selects. */
+    hideAll?: boolean;
     className?: string;
 };
 
 export function SearchableSelect({
+    id,
     options,
     value,
     onChange,
     placeholder,
     allLabel,
+    hideAll = false,
     className,
 }: SearchableSelectProps) {
     const selectedLabel = options.find((option) => option.value === value)?.label;
@@ -40,6 +45,7 @@ export function SearchableSelect({
         <Popover>
             <PopoverTrigger asChild>
                 <Button
+                    id={id}
                     variant="outline"
                     role="combobox"
                     className={cn(
@@ -61,18 +67,26 @@ export function SearchableSelect({
                     <CommandList>
                         <CommandEmpty>No results.</CommandEmpty>
                         <CommandGroup>
-                            <CommandItem
-                                value={allLabel ?? `All ${placeholder.toLowerCase()}`}
-                                onSelect={() => onChange(null)}
-                            >
-                                <Check
-                                    className={cn(
-                                        'size-4',
-                                        !value ? 'opacity-100' : 'opacity-0',
-                                    )}
-                                />
-                                {allLabel ?? `All ${placeholder.toLowerCase()}`}
-                            </CommandItem>
+                            {!hideAll && (
+                                <CommandItem
+                                    value={
+                                        allLabel ??
+                                        `All ${placeholder.toLowerCase()}`
+                                    }
+                                    onSelect={() => onChange(null)}
+                                >
+                                    <Check
+                                        className={cn(
+                                            'size-4',
+                                            !value
+                                                ? 'opacity-100'
+                                                : 'opacity-0',
+                                        )}
+                                    />
+                                    {allLabel ??
+                                        `All ${placeholder.toLowerCase()}`}
+                                </CommandItem>
+                            )}
                             {options.map((option) => (
                                 <CommandItem
                                     key={option.value}

@@ -49,6 +49,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
     SelectContent,
@@ -455,29 +456,22 @@ function SendTestLeadDialog({
                                     <Label htmlFor="test-lead-country">
                                         Country
                                     </Label>
-                                    <Select
-                                        value={countryCode}
-                                        onValueChange={regenerate}
-                                    >
-                                        <SelectTrigger id="test-lead-country">
-                                            <SelectValue placeholder="Select a country…" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectGroup>
-                                                {getCountryList().map(
-                                                    (country) => (
-                                                        <SelectItem
-                                                            key={country.code}
-                                                            value={country.code}
-                                                        >
-                                                            {country.name} (
-                                                            {country.code})
-                                                        </SelectItem>
-                                                    ),
-                                                )}
-                                            </SelectGroup>
-                                        </SelectContent>
-                                    </Select>
+                                    <SearchableSelect
+                                        id="test-lead-country"
+                                        options={getCountryList().map(
+                                            (country) => ({
+                                                value: country.code,
+                                                label: `${country.name} (${country.code})`,
+                                            }),
+                                        )}
+                                        value={countryCode || null}
+                                        onChange={(value) =>
+                                            regenerate(value ?? '')
+                                        }
+                                        placeholder="Select a country…"
+                                        hideAll
+                                        className="w-full"
+                                    />
                                 </div>
                                 <Button
                                     type="button"
