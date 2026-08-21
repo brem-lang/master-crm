@@ -1,3 +1,26 @@
+# Login Page — Updated Code
+
+File: `resources/js/pages/auth/login.tsx`
+
+Split-screen login page for AlphaMasterCRM. The left panel is a decorative
+brand/story panel (dark navy, starfield, radar rings, animated ascending
+path, pipeline card, field notes copy, telemetry footer). The right panel
+is the actual login form (email, password, remember me, submit).
+
+This page renders standalone (no shared `AuthLayout` wrapper) — see the
+`auth/login` case in `resources/js/app.tsx`:
+
+```tsx
+case name === 'auth/login':
+    return null;
+```
+
+Related animation keyframes (`dash-flow`, `climb-pulse`) live in
+`resources/css/app.css`.
+
+## `resources/js/pages/auth/login.tsx`
+
+```tsx
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
 import { Button } from '@/components/ui/button';
@@ -232,3 +255,60 @@ export default function Login({ status }: Props) {
         </>
     );
 }
+```
+
+## Supporting changes
+
+### `resources/js/app.tsx` — render this page with no layout wrapper
+
+```tsx
+case name === 'welcome':
+    return null;
+case name === 'auth/login':
+    return null;
+case name.startsWith('auth/'):
+    return AuthLayout;
+```
+
+### `resources/css/app.css` — animation keyframes used by the path/marker
+
+```css
+@keyframes dash-flow {
+    to {
+        stroke-dashoffset: -28;
+    }
+}
+
+@keyframes climb-pulse {
+    0%,
+    100% {
+        opacity: 1;
+        filter: drop-shadow(0 0 0px rgba(251, 191, 36, 0.9));
+    }
+    50% {
+        opacity: 0.55;
+        filter: drop-shadow(0 0 7px rgba(251, 191, 36, 1));
+    }
+}
+
+.animate-dash-flow {
+    animation: dash-flow 1.1s linear infinite;
+}
+
+.animate-climb-pulse {
+    animation: climb-pulse 1.8s ease-in-out infinite;
+}
+```
+
+## Notes
+
+- The `AppLogoIcon` import next to the "AlphaMaster CRM" brand mark was
+  commented out on disk (text-only wordmark is currently shown instead of
+  icon + wordmark).
+- "Forgot password?" and "Request an account" links from the original
+  design reference were intentionally omitted — this app has no
+  password-reset or self-registration routes.
+- A few Tailwind class names here could be written in their newer
+  canonical form (`bg-gradient-to-r` → `bg-linear-to-r`, `size-[36rem]` →
+  `size-144`, etc.) per the editor's lint hints; left as-is since both
+  forms compile identically in the current Tailwind version.
