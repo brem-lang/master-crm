@@ -33,6 +33,11 @@ use Illuminate\Support\Str;
  * @property string|null $update_affiliate_url
  * @property string|null $get_affiliate_whitelisted_ips_url
  * @property string|null $distribution_rules_url
+ * @property string|null $get_chat_messages_url
+ * @property string|null $send_chat_message_url
+ * @property Carbon|null $chat_last_synced_at
+ * @property Carbon|null $chat_last_synced_since
+ * @property string|null $chat_last_synced_cursor
  * @property bool $is_active
  * @property Carbon|null $last_synced_at
  * @property Carbon|null $last_synced_since
@@ -55,10 +60,12 @@ use Illuminate\Support\Str;
     'affiliate_count_api_url', 'advertiser_count_api_url', 'send_test_lead_url', 'release_ftd_url', 'send_lead_url',
     'update_affiliate_status_url', 'resend_lead_url', 'update_distribution_rule_url', 'update_advertiser_url',
     'update_affiliate_url', 'get_affiliate_whitelisted_ips_url', 'distribution_rules_url',
+    'get_chat_messages_url', 'send_chat_message_url',
     'is_active', 'last_synced_at', 'last_synced_since', 'last_synced_cursor',
     'affiliates_last_synced_at', 'affiliates_last_synced_since', 'affiliates_last_synced_cursor',
     'advertisers_last_synced_at', 'advertisers_last_synced_since', 'advertisers_last_synced_cursor',
     'distribution_rules_last_synced_at', 'distribution_rules_last_synced_since', 'distribution_rules_last_synced_cursor',
+    'chat_last_synced_at', 'chat_last_synced_since', 'chat_last_synced_cursor',
 ])]
 #[Hidden(['api_key'])]
 class Company extends Model
@@ -107,6 +114,14 @@ class Company extends Model
     }
 
     /**
+     * @return HasMany<ChatMessage, $this>
+     */
+    public function chatMessages(): HasMany
+    {
+        return $this->hasMany(ChatMessage::class);
+    }
+
+    /**
      * The endpoint slug each auto-derived URL column appends to the
      * company's `api_url` on creation — mirrors the naming already implied
      * by this child CRM API convention (see the create-company form's own
@@ -132,6 +147,8 @@ class Company extends Model
         'update_affiliate_url' => 'update-affiliate',
         'get_affiliate_whitelisted_ips_url' => 'get-affiliate-whitelisted-ips',
         'distribution_rules_url' => 'get-all-distribution-rules',
+        'get_chat_messages_url' => 'get-chat-messages',
+        'send_chat_message_url' => 'send-chat-message',
     ];
 
     /**
@@ -182,6 +199,8 @@ class Company extends Model
             'advertisers_last_synced_since' => 'datetime',
             'distribution_rules_last_synced_at' => 'datetime',
             'distribution_rules_last_synced_since' => 'datetime',
+            'chat_last_synced_at' => 'datetime',
+            'chat_last_synced_since' => 'datetime',
         ];
     }
 }

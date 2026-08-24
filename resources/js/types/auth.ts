@@ -152,6 +152,18 @@ export type JobRun = {
     company?: Pick<Company, 'id' | 'name'> | null;
 };
 
+export type ChatMessage = {
+    id: number;
+    direction: 'inbound' | 'outbound';
+    sender_type: 'master' | 'child';
+    sender_user_id: number | null;
+    sender_name: string | null;
+    body: string;
+    status: 'pending' | 'sent' | 'delivered' | 'failed';
+    failure_reason: string | null;
+    occurred_at: string;
+};
+
 export type AuditLog = {
     id: number;
     actor: Pick<User, 'id' | 'name' | 'email'> | null;

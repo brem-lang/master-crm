@@ -1,6 +1,7 @@
-import { Form, Head, router, usePage } from '@inertiajs/react';
+import { Form, Head, Link, router, usePage } from '@inertiajs/react';
 import {
     Download,
+    MessageCircle,
     MoreHorizontal,
     Pencil,
     Plus,
@@ -55,6 +56,7 @@ import { WebsiteStatusBadge } from '@/components/website-status-badge';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { useRowSelection } from '@/hooks/use-row-selection';
 import { relativeTime } from '@/lib/relative-time';
+import { index as chatIndex } from '@/routes/chat';
 import { index as companiesIndex } from '@/routes/companies';
 import type { Company, Paginator, User } from '@/types';
 
@@ -341,6 +343,17 @@ export default function CompaniesIndex() {
                                                 >
                                                     <Pencil />
                                                     Edit
+                                                </DropdownMenuItem>
+
+                                                <DropdownMenuItem asChild>
+                                                    <Link
+                                                        href={chatIndex(
+                                                            company.id,
+                                                        )}
+                                                    >
+                                                        <MessageCircle />
+                                                        Chat
+                                                    </Link>
                                                 </DropdownMenuItem>
 
                                                 {company.is_active && (

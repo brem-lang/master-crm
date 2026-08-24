@@ -10,6 +10,7 @@ import {
     Globe,
     LayoutGrid,
     Megaphone,
+    MessageCircle,
     Settings,
     ShieldCheck,
     Trophy,
@@ -35,6 +36,7 @@ import { dashboard } from '@/routes';
 import { index as advertisersIndex } from '@/routes/advertisers';
 import { index as affiliatesIndex } from '@/routes/affiliates';
 import { index as auditLogIndex } from '@/routes/audit-log';
+import { index as chatIndex } from '@/routes/chat';
 import { index as companiesIndex } from '@/routes/companies';
 import { index as companyAuditLogIndex } from '@/routes/company-audit-log';
 import { index as companyHealthIndex } from '@/routes/company-health';
@@ -154,6 +156,11 @@ export function AppSidebar() {
                       title: 'Company Health',
                       href: companyHealthIndex(),
                       icon: Activity,
+                  },
+                  {
+                      title: 'Chat',
+                      href: chatIndex(auth.company.id),
+                      icon: MessageCircle,
                   },
               ]
             : []),
