@@ -27,7 +27,11 @@ class CompanyUpdateRequest extends FormRequest
                 Rule::unique(Company::class, 'name')->ignore($this->route('company')?->id),
             ],
             'website' => ['nullable', 'string', 'max:255', 'url'],
-            'api_url' => ['required', 'string', 'max:255', 'url'],
+            // base_url is only used to derive the endpoints below at creation
+            // time (see Company::deriveEndpointUrls()) — editing it here
+            // never recomputes them, so it's optional on update.
+            'base_url' => ['sometimes', 'nullable', 'string', 'max:255', 'url'],
+            'api_url' => ['sometimes', 'string', 'max:255', 'url'],
             'api_key' => [
                 'nullable',
                 'string',

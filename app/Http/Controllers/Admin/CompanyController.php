@@ -73,7 +73,7 @@ class CompanyController extends Controller
 
         $company = Company::create([
             ...$validated,
-            ...Company::deriveEndpointUrls($validated['api_url']),
+            ...Company::deriveEndpointUrls($validated['base_url']),
             'slug' => Company::generateUniqueSlug($validated['name']),
             'is_active' => $request->boolean('is_active'),
         ]);

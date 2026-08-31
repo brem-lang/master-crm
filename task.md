@@ -1,5 +1,5 @@
-GET https://backend.marketlinkco.live/functions/v1/get-all-affiliates — full affiliate records , filters: is_active, name, since, after_id.
+so te fix here is this
 
-GET https://backend.marketlinkco.live/functions/v1/get-all-advertisers — full advertiser records , filters: is_active, advertiser_type, name, since, after_id.
+dont show the api_url in the company wehn creating and editing,
 
-Both authenticate with the same Api-Key
+we should add a new column callled base url, so i have ere sample base url https://partneryx.xyz/functions/v1/

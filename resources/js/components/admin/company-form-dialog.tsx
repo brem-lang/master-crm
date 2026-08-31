@@ -86,23 +86,21 @@ export function CompanyFormDialog({ open, onOpenChange, company }: Props) {
                                 </div>
 
                                 <div className="grid gap-2">
-                                    <Label htmlFor="api_url">
-                                        API Base URL
-                                    </Label>
+                                    <Label htmlFor="base_url">Base URL</Label>
                                     <Input
-                                        id="api_url"
-                                        name="api_url"
+                                        id="base_url"
+                                        name="base_url"
                                         type="url"
-                                        defaultValue={company?.api_url ?? ''}
-                                        required
-                                        placeholder="https://child-crm.example.com/api"
+                                        defaultValue={company?.base_url ?? ''}
+                                        required={!isEdit}
+                                        placeholder="https://partneryx.xyz/functions/v1/"
                                     />
-                                    <InputError message={errors.api_url} />
+                                    <InputError message={errors.base_url} />
                                     <p className="text-sm text-muted-foreground">
-                                        Every other endpoint (affiliates,
+                                        Every endpoint (leads, affiliates,
                                         advertisers, send/resend lead, etc.)
                                         is generated automatically from this
-                                        base URL.
+                                        base URL when the company is created.
                                     </p>
                                 </div>
 

@@ -16,6 +16,7 @@ use Illuminate\Support\Str;
  * @property string $name
  * @property string $slug
  * @property string|null $website
+ * @property string|null $base_url
  * @property string $api_url
  * @property string $api_key
  * @property string|null $leads_count_url
@@ -56,7 +57,7 @@ use Illuminate\Support\Str;
  * @property Carbon|null $updated_at
  */
 #[Fillable([
-    'name', 'slug', 'website', 'api_url', 'api_key', 'leads_count_url', 'affiliates_url', 'advertisers_url',
+    'name', 'slug', 'website', 'base_url', 'api_url', 'api_key', 'leads_count_url', 'affiliates_url', 'advertisers_url',
     'affiliate_count_api_url', 'advertiser_count_api_url', 'send_test_lead_url', 'release_ftd_url', 'send_lead_url',
     'update_affiliate_status_url', 'resend_lead_url', 'update_distribution_rule_url', 'update_advertiser_url',
     'update_affiliate_url', 'get_affiliate_whitelisted_ips_url', 'distribution_rules_url',
@@ -123,15 +124,16 @@ class Company extends Model
 
     /**
      * The endpoint slug each auto-derived URL column appends to the
-     * company's `api_url` on creation — mirrors the naming already implied
-     * by this child CRM API convention (see the create-company form's own
-     * historical placeholders). Only used at creation time; once set, these
-     * columns are ordinary editable fields and are never silently
-     * recomputed just because `api_url` later changes.
+     * company's `base_url` on creation — one map to keep 18 endpoints
+     * (including `api_url` itself) in sync instead of hand-typing each one,
+     * prone to typos/inconsistency between companies. Only used at creation
+     * time; once set, these columns are ordinary editable fields and are
+     * never silently recomputed just because `base_url` later changes.
      *
      * @var array<string, string>
      */
     private const ENDPOINT_SLUGS = [
+        'api_url' => 'get-all-leads?includeRejected=1',
         'leads_count_url' => 'get-leads-count',
         'affiliates_url' => 'get-all-affiliates',
         'advertisers_url' => 'get-all-advertisers',
@@ -152,15 +154,15 @@ class Company extends Model
     ];
 
     /**
-     * Every other endpoint URL, derived from the single API base URL an
-     * admin now enters on creation — one map to keep in sync instead of 14
-     * hand-typed fields prone to typos/inconsistency between companies.
+     * Every child-CRM endpoint URL — including `api_url` — derived from the
+     * single `base_url` an admin enters on creation (e.g.
+     * `https://partneryx.xyz/functions/v1/`).
      *
      * @return array<string, string>
      */
-    public static function deriveEndpointUrls(string $apiUrl): array
+    public static function deriveEndpointUrls(string $baseUrl): array
     {
-        $base = rtrim($apiUrl, '/');
+        $base = rtrim($baseUrl, '/');
 
         return array_map(fn (string $slug) => "{$base}/{$slug}", self::ENDPOINT_SLUGS);
     }

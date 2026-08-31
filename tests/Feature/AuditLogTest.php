@@ -15,7 +15,7 @@ test('creating a company records a company.created entry with the acting user', 
 
     $this->actingAs($parentAdmin)->post(route('companies.store'), [
         'name' => 'Acme Inc',
-        'api_url' => 'https://acme.example.com/api',
+        'base_url' => 'https://acme.example.com/api',
         'api_key' => 'secret-key',
         'is_active' => '1',
     ]);

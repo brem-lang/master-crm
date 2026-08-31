@@ -20,6 +20,7 @@ export type Company = {
     slug?: string;
     website?: string | null;
     website_status?: 'online' | 'offline' | null;
+    base_url?: string | null;
     api_url?: string;
     leads_count_url?: string | null;
     affiliates_url?: string | null;
