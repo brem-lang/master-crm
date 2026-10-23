@@ -20,34 +20,39 @@ class CompanyHealth
     {
         $statuses = $this->healthChecker->statusFor($companies);
 
-        $runsByCompany = JobRun::whereIn('company_id', $companies->pluck('id'))
-            ->orderByDesc('created_at')
-            ->get(['company_id', 'success', 'created_at'])
-            ->groupBy('company_id');
+        $streaks = $this->failureStreaks($companies->pluck('id'));
 
-        $companies->each(function (Company $company) use ($statuses, $runsByCompany) {
+        $companies->each(function (Company $company) use ($statuses, $streaks) {
             $company->setAttribute('website_status', $statuses[$company->id] ?? null);
-            $company->setAttribute('failure_streak', $this->failureStreak($runsByCompany->get($company->id, collect())));
+            $company->setAttribute('failure_streak', (int) ($streaks[$company->id] ?? 0));
         });
     }
 
     /**
-     * Count consecutive failed runs, newest first, until the first success.
+     * Count consecutive failed runs per company since its most recent success.
      *
-     * @param  Collection<int, JobRun>  $runs
+     * Aggregated in SQL so the full run history is never loaded into memory.
+     *
+     * @param  Collection<int, int>  $companyIds
+     * @return Collection<int, int>
      */
-    private function failureStreak(Collection $runs): int
+    private function failureStreaks(Collection $companyIds): Collection
     {
-        $streak = 0;
+        $lastSuccess = JobRun::query()
+            ->whereIn('company_id', $companyIds)
+            ->where('success', true)
+            ->groupBy('company_id')
+            ->selectRaw('company_id, max(created_at) as last_success_at');
 
-        foreach ($runs as $run) {
-            if ($run->success) {
-                break;
-            }
-
-            $streak++;
-        }
-
-        return $streak;
+        return JobRun::query()
+            ->from('job_runs as runs')
+            ->leftJoinSub($lastSuccess, 'last_success', 'last_success.company_id', '=', 'runs.company_id')
+            ->whereIn('runs.company_id', $companyIds)
+            ->where('runs.success', false)
+            ->where(fn ($query) => $query->whereNull('last_success.last_success_at')
+                ->orWhereColumn('runs.created_at', '>', 'last_success.last_success_at'))
+            ->groupBy('runs.company_id')
+            ->selectRaw('runs.company_id, count(*) as streak')
+            ->pluck('streak', 'company_id');
     }
 }

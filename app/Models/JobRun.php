@@ -4,7 +4,9 @@ namespace App\Models;
 
 use Database\Factories\JobRunFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\MassPrunable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -25,7 +27,17 @@ use Illuminate\Support\Carbon;
 class JobRun extends Model
 {
     /** @use HasFactory<JobRunFactory> */
-    use HasFactory;
+    use HasFactory, MassPrunable;
+
+    /**
+     * Runs older than 30 days are deleted daily by `model:prune`.
+     *
+     * @return Builder<static>
+     */
+    public function prunable(): Builder
+    {
+        return static::where('created_at', '<=', now()->subDays(30));
+    }
 
     /**
      * @return BelongsTo<Company, $this>

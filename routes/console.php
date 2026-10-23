@@ -11,4 +11,6 @@ Artisan::command('inspire', function () {
 
 Schedule::job(new PullAllCompaniesLeadsJob)->everyThirtyMinutes()->withoutOverlapping();
 
+Schedule::command('model:prune')->daily();
+
 // Schedule::job(new PullAllCompaniesLeadsJob)->everyMinute()->withoutOverlapping();
