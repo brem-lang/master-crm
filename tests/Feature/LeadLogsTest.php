@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AuditLog;
 use App\Models\LeadLog;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -88,4 +89,45 @@ test('users without manage-companies cannot view the leads logs page', function 
     $user = User::factory()->create();
 
     $this->actingAs($user)->get(route('leads-logs.index'))->assertForbidden();
+});
+
+test('parent admins can bulk delete lead logs', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('parent-admin');
+
+    [$first, $second, $kept] = LeadLog::factory()->count(3)->create();
+
+    $this->actingAs($admin)
+        ->delete(route('leads-logs.bulk-destroy'), ['ids' => [$first->id, $second->id]])
+        ->assertRedirect();
+
+    expect(LeadLog::pluck('id')->all())->toBe([$kept->id]);
+
+    $audit = AuditLog::where('action', 'lead_logs.bulk_deleted')->sole();
+    expect($audit->actor_id)->toBe($admin->id);
+    expect($audit->changes['count'])->toBe(2);
+});
+
+test('bulk delete validates ids', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('parent-admin');
+
+    $this->actingAs($admin)
+        ->delete(route('leads-logs.bulk-destroy'), ['ids' => ['abc']])
+        ->assertSessionHasErrors('ids.0');
+
+    $this->actingAs($admin)
+        ->delete(route('leads-logs.bulk-destroy'), [])
+        ->assertSessionHasErrors('ids');
+});
+
+test('users without manage-companies cannot bulk delete lead logs', function () {
+    $user = User::factory()->create();
+    $log = LeadLog::factory()->create();
+
+    $this->actingAs($user)
+        ->delete(route('leads-logs.bulk-destroy'), ['ids' => [$log->id]])
+        ->assertForbidden();
+
+    expect(LeadLog::whereKey($log->id)->exists())->toBeTrue();
 });

@@ -1,11 +1,14 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import { Eye, Search } from 'lucide-react';
 import { useState } from 'react';
+import LeadLogsController from '@/actions/App/Http/Controllers/LeadLogsController';
+import { BulkDeleteBar } from '@/components/bulk-delete-bar';
 import { DataPagination } from '@/components/data-pagination';
 import Heading from '@/components/heading';
 import { RefreshButton } from '@/components/refresh-button';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -31,6 +34,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
+import { useRowSelection } from '@/hooks/use-row-selection';
 import { index as leadsLogsIndex } from '@/routes/leads-logs';
 import type { LeadLog, Paginator } from '@/types';
 
@@ -60,7 +64,7 @@ function LeadLogDetailsDialog({
                     <DialogDescription>{entry.email}</DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4">
+                <div className="min-w-0 space-y-4">
                     <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                         {fields.map(([label, value]) => (
                             <div key={label}>
@@ -78,7 +82,7 @@ function LeadLogDetailsDialog({
                         <p className="mb-2 text-sm font-medium text-muted-foreground">
                             Data
                         </p>
-                        <pre className="max-h-96 overflow-auto rounded-md bg-muted p-3 font-mono text-xs">
+                        <pre className="max-h-96 overflow-auto rounded-md bg-muted p-3 font-mono text-xs wrap-anywhere whitespace-pre-wrap">
                             {JSON.stringify(entry.data, null, 2)}
                         </pre>
                     </div>
@@ -101,6 +105,7 @@ export default function LeadsLogsIndex() {
     const { entries, offers, filters } = usePage<PageProps>().props;
     const [search, setSearch] = useState(filters.search);
     const [viewingEntry, setViewingEntry] = useState<LeadLog | null>(null);
+    const selection = useRowSelection(entries.data, entries.current_page);
 
     const applyFilters = (next: Partial<typeof filters>) => {
         router.get(
@@ -170,10 +175,40 @@ export default function LeadsLogsIndex() {
                     </Select>
                 </div>
 
+                <BulkDeleteBar
+                    count={selection.selectedIds.length}
+                    description="This will permanently delete the selected lead logs. This action cannot be undone."
+                    onConfirm={(onFinish) => {
+                        router.delete(LeadLogsController.bulkDestroy().url, {
+                            data: { ids: selection.selectedIds },
+                            preserveScroll: true,
+                            onSuccess: () => selection.setSelectedIds([]),
+                            onFinish,
+                        });
+                    }}
+                />
+
                 <div className="rounded-md border">
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead className="w-px">
+                                    <Checkbox
+                                        checked={
+                                            selection.allSelected
+                                                ? true
+                                                : selection.someSelected
+                                                  ? 'indeterminate'
+                                                  : false
+                                        }
+                                        onCheckedChange={(checked) =>
+                                            selection.toggleAll(
+                                                checked === true,
+                                            )
+                                        }
+                                        aria-label="Select all"
+                                    />
+                                </TableHead>
                                 <TableHead>Email</TableHead>
                                 <TableHead>Offer</TableHead>
                                 <TableHead className="hidden lg:table-cell">
@@ -189,7 +224,7 @@ export default function LeadsLogsIndex() {
                             {entries.data.length === 0 ? (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={5}
+                                        colSpan={6}
                                         className="py-8 text-center text-sm text-muted-foreground"
                                     >
                                         No lead logs received yet.
@@ -197,7 +232,28 @@ export default function LeadsLogsIndex() {
                                 </TableRow>
                             ) : (
                                 entries.data.map((entry) => (
-                                    <TableRow key={entry.id}>
+                                    <TableRow
+                                        key={entry.id}
+                                        data-state={
+                                            selection.isSelected(entry.id)
+                                                ? 'selected'
+                                                : undefined
+                                        }
+                                    >
+                                        <TableCell>
+                                            <Checkbox
+                                                checked={selection.isSelected(
+                                                    entry.id,
+                                                )}
+                                                onCheckedChange={(checked) =>
+                                                    selection.toggleOne(
+                                                        entry.id,
+                                                        checked === true,
+                                                    )
+                                                }
+                                                aria-label={`Select ${entry.email}`}
+                                            />
+                                        </TableCell>
                                         <TableCell className="font-medium">
                                             {entry.email}
                                         </TableCell>
