@@ -176,6 +176,15 @@ export type AuditLog = {
     created_at: string;
 };
 
+export type LeadLog = {
+    id: number;
+    email: string;
+    offer_name: string;
+    data: Record<string, unknown> | unknown[];
+    ip_address: string | null;
+    created_at: string;
+};
+
 export type Auth = {
     user: User;
     permissions?: string[];

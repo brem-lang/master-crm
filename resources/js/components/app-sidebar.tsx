@@ -4,6 +4,7 @@ import {
     BadgeCheck,
     Building2,
     ClipboardList,
+    FileClock,
     FileText,
     Handshake,
     ListChecks,
@@ -49,6 +50,7 @@ import {
     leaderboard as leaderboardIndex,
     rejected as rejectedLeadsIndex,
 } from '@/routes/leads';
+import { index as leadsLogsIndex } from '@/routes/leads-logs';
 import { index as logsIndex } from '@/routes/logs';
 import { index as myLeadsIndex } from '@/routes/my-leads';
 import { index as rolesIndex } from '@/routes/roles';
@@ -200,6 +202,11 @@ export function AppSidebar() {
                       title: 'Activity Log',
                       href: auditLogIndex(),
                       icon: ClipboardList,
+                  },
+                  {
+                      title: 'Leads Logs',
+                      href: leadsLogsIndex(),
+                      icon: FileClock,
                   },
               ]
             : []),

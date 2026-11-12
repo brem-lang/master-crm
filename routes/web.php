@@ -27,3 +27,4 @@ require __DIR__.'/advertisers.php';
 require __DIR__.'/distribution-rules.php';
 require __DIR__.'/logs.php';
 require __DIR__.'/chat.php';
+require __DIR__.'/leads-logs.php';
