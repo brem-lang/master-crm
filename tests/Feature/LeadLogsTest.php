@@ -14,12 +14,14 @@ test('the api stores a lead log with a valid token', function () {
     $this->withToken('test-token')->postJson('/api/leads-logs', [
         'email' => 'lead@example.com',
         'offer_name' => 'Crypto Pro',
+        'ip_address' => '203.0.113.5',
         'data' => ['country' => 'DE', 'phone' => '123'],
     ])->assertCreated()->assertJsonStructure(['data' => ['id', 'created_at']]);
 
     $log = LeadLog::sole();
     expect($log->email)->toBe('lead@example.com');
     expect($log->offer_name)->toBe('Crypto Pro');
+    expect($log->ip_address)->toBe('203.0.113.5');
     expect($log->data)->toBe(['country' => 'DE', 'phone' => '123']);
 });
 
@@ -27,6 +29,7 @@ test('the api accepts an empty data array', function () {
     $this->withToken('test-token')->postJson('/api/leads-logs', [
         'email' => 'lead@example.com',
         'offer_name' => 'Crypto Pro',
+        'ip_address' => '2001:db8::1',
         'data' => [],
     ])->assertCreated();
 });
@@ -51,8 +54,17 @@ test('the api fails closed when no token is configured', function () {
 test('the api validates the payload', function () {
     $this->withToken('test-token')->postJson('/api/leads-logs', [
         'email' => 'not-an-email',
+        'ip_address' => '999.1.1.1',
         'data' => 'string',
-    ])->assertUnprocessable()->assertJsonValidationErrors(['email', 'offer_name', 'data']);
+    ])->assertUnprocessable()->assertJsonValidationErrors(['email', 'offer_name', 'ip_address', 'data']);
+});
+
+test('the api requires ip_address', function () {
+    $this->withToken('test-token')->postJson('/api/leads-logs', [
+        'email' => 'lead@example.com',
+        'offer_name' => 'Crypto Pro',
+        'data' => [],
+    ])->assertUnprocessable()->assertJsonValidationErrors(['ip_address']);
 });
 
 test('parent admins can view and filter the leads logs page', function () {

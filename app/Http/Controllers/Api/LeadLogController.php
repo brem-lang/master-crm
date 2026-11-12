@@ -11,10 +11,7 @@ class LeadLogController extends Controller
 {
     public function store(StoreLeadLogRequest $request): JsonResponse
     {
-        $leadLog = LeadLog::create([
-            ...$request->validated(),
-            'ip_address' => $request->ip(),
-        ]);
+        $leadLog = LeadLog::create($request->validated());
 
         return response()->json([
             'data' => [
